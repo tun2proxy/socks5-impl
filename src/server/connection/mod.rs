@@ -1,6 +1,6 @@
 use self::{associate::UdpAssociate, bind::Bind, connect::Connect};
 use crate::{
-    protocol::{self, Address, AuthMethod, Command, HandshakeRequest, HandshakeResponse},
+    protocol::{self, handshake, Address, AuthMethod, Command},
     server::AuthAdaptor,
 };
 use std::{net::SocketAddr, time::Duration};
@@ -104,21 +104,21 @@ impl<O: 'static> IncomingConnection<O> {
     ///
     /// Note that this method will not implicitly close the connection even if the handshake failed.
     pub async fn authenticate(mut self) -> std::io::Result<(Authenticated, O)> {
-        let request = HandshakeRequest::rebuild_from_stream(&mut self.stream).await?;
+        let request = handshake::Request::rebuild_from_stream(&mut self.stream).await?;
         if let Some(method) = self.evaluate_request(&request) {
-            let response = HandshakeResponse::new(method);
+            let response = handshake::Response::new(method);
             response.write_to_stream(&mut self.stream).await?;
             let output = self.auth.execute(&mut self.stream).await;
             Ok((Authenticated::new(self.stream), output))
         } else {
-            let response = HandshakeResponse::new(AuthMethod::NoAcceptableMethods);
+            let response = handshake::Response::new(AuthMethod::NoAcceptableMethods);
             response.write_to_stream(&mut self.stream).await?;
             let err = "No available handshake method provided by client";
             Err(std::io::Error::new(std::io::ErrorKind::Unsupported, err))
         }
     }
 
-    fn evaluate_request(&self, req: &HandshakeRequest) -> Option<AuthMethod> {
+    fn evaluate_request(&self, req: &handshake::Request) -> Option<AuthMethod> {
         let method = self.auth.auth_method();
         req.methods.iter().find(|&&m| m == method).copied()
     }

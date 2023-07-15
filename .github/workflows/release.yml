@@ -1,4 +1,4 @@
-name: Build Releases
+name: Deploy Releases
 on:
   push:
     tags:
@@ -7,7 +7,7 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build:
+  deploy:
     strategy:
       matrix:
         target:
@@ -57,11 +57,11 @@ jobs:
             cargo build --all-features --release --examples --target ${{ matrix.target }}
           fi
           if [[ "${{ matrix.host_os }}" == "windows-latest" ]]; then
-            powershell Compress-Archive -Path target/${{ matrix.target }}/release/examples/simple-server.exe, target/${{ matrix.target }}/release/examples/udp-client.exe, target/${{ matrix.target }}/release/examples/dns-query.exe -DestinationPath release/socks5-utilities-${{ matrix.target }}.zip
+            powershell Compress-Archive -Path target/${{ matrix.target }}/release/examples/dns2socks.exe, target/${{ matrix.target }}/release/examples/simple-server.exe, target/${{ matrix.target }}/release/examples/udp-client.exe, target/${{ matrix.target }}/release/examples/dns-query.exe -DestinationPath release/socks5-utilities-${{ matrix.target }}.zip
           elif [[ "${{ matrix.host_os }}" == "macos-latest" ]]; then
-            zip -j release/socks5-utilities-${{ matrix.target }}.zip target/${{ matrix.target }}/release/examples/simple-server target/${{ matrix.target }}/release/examples/udp-client target/${{ matrix.target }}/release/examples/dns-query
+            zip -j release/socks5-utilities-${{ matrix.target }}.zip target/${{ matrix.target }}/release/examples/dns2socks target/${{ matrix.target }}/release/examples/simple-server target/${{ matrix.target }}/release/examples/udp-client target/${{ matrix.target }}/release/examples/dns-query
           elif [[ "${{ matrix.host_os }}" == "ubuntu-latest" ]]; then
-            zip -j release/socks5-utilities-${{ matrix.target }}.zip target/${{ matrix.target }}/release/examples/simple-server target/${{ matrix.target }}/release/examples/udp-client target/${{ matrix.target }}/release/examples/dns-query
+            zip -j release/socks5-utilities-${{ matrix.target }}.zip target/${{ matrix.target }}/release/examples/dns2socks target/${{ matrix.target }}/release/examples/simple-server target/${{ matrix.target }}/release/examples/udp-client target/${{ matrix.target }}/release/examples/dns-query
           fi
 
       - name: Upload

@@ -12,11 +12,11 @@ use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 /// +-----+----------+----------|
 /// ```
 #[derive(Clone, Debug)]
-pub struct HandshakeRequest {
+pub struct Request {
     pub methods: Vec<AuthMethod>,
 }
 
-impl HandshakeRequest {
+impl Request {
     pub fn new(methods: Vec<AuthMethod>) -> Self {
         Self { methods }
     }

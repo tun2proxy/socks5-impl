@@ -490,8 +490,8 @@ impl UdpClientTrait for SocksUdpClient {
     }
 }
 
-pub async fn create_udp_client(proxy_addr: &str, auth: Option<UserKey>) -> Result<SocksUdpClient> {
-    let proxy_addr = proxy_addr.parse::<SocketAddr>()?;
+pub async fn create_udp_client<A: Into<SocketAddr>>(proxy_addr: A, auth: Option<UserKey>) -> Result<SocksUdpClient> {
+    let proxy_addr = proxy_addr.into();
     let client_addr = if proxy_addr.is_ipv4() { "0.0.0.0:0" } else { "[::]:0" };
     let proxy = TcpStream::connect(proxy_addr).await?;
     let proxy = BufStream::new(proxy);
@@ -515,11 +515,14 @@ impl UdpClientImpl<SocksUdpClient> {
         Ok(buf)
     }
 
-    pub async fn datagram(proxy_addr: &str, udp_server_addr: &str, auth: Option<UserKey>) -> Result<Self> {
+    pub async fn datagram<A1, A2>(proxy_addr: A1, udp_server_addr: A2, auth: Option<UserKey>) -> Result<Self>
+    where
+        A1: Into<SocketAddr>,
+        A2: Into<Address>,
+    {
         let client = create_udp_client(proxy_addr, auth).await?;
 
-        let server_addr: SocketAddr = udp_server_addr.parse()?;
-        let server_addr = Address::from(server_addr);
+        let server_addr = udp_server_addr.into();
 
         Ok(Self { client, server_addr })
     }
@@ -642,7 +645,8 @@ mod tests {
 
     impl UdpTest<SocksUdpClient> {
         async fn datagram() -> Self {
-            let client = client::create_udp_client(PROXY_ADDR, None).await.unwrap();
+            let addr = PROXY_ADDR.parse::<SocketAddr>().unwrap();
+            let client = client::create_udp_client(addr, None).await.unwrap();
 
             let server_addr: SocketAddr = SERVER_ADDR.parse().unwrap();
             let server = UdpSocket::bind(server_addr).await.unwrap();

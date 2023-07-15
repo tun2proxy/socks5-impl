@@ -1,5 +1,8 @@
 use socks5_impl::{client::UdpClientImpl, protocol::UserKey, Result};
-use std::{net::ToSocketAddrs, time::Duration};
+use std::{
+    net::{SocketAddr, ToSocketAddrs},
+    time::Duration,
+};
 use tokio::net::UdpSocket;
 
 /// Udp client through socks5 proxy.
@@ -8,7 +11,7 @@ use tokio::net::UdpSocket;
 pub struct CmdOpt {
     /// Udp target server address.
     #[clap(short, long, value_name = "addr:port")]
-    target_addr: String,
+    target_addr: SocketAddr,
 
     /// Data string to send.
     #[clap(short, long, value_name = "data")]
@@ -20,7 +23,7 @@ pub struct CmdOpt {
 
     /// Socket5 proxy server address.
     #[clap(short, long, value_name = "addr:port")]
-    proxy_addr: Option<String>,
+    proxy_addr: Option<SocketAddr>,
 
     /// User name for authentication.
     #[clap(short, long, value_name = "user name")]
@@ -67,7 +70,7 @@ async fn main() -> Result<()> {
         println!("{}", std::str::from_utf8(&buf[..len])?);
     } else {
         let proxy_addr = opt.proxy_addr.ok_or("proxy_addr is required")?;
-        let data = UdpClientImpl::datagram(&proxy_addr, &opt.target_addr, user_key)
+        let data = UdpClientImpl::datagram(proxy_addr, opt.target_addr, user_key)
             .await?
             .transfer_data(opt.data.as_bytes(), timeout)
             .await?;

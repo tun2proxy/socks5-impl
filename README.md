@@ -29,9 +29,7 @@ Check [examples](https://github.com/ssrlive/socks5-impl/tree/master/examples) fo
 ## Example
 
 ```rust no_run
-use socks5_impl::protocol::{
-    Address, AuthMethod, HandshakeRequest, HandshakeResponse, Reply, Request, Response,
-};
+use socks5_impl::protocol::{handshake, Address, AuthMethod, Reply, Request, Response};
 use std::io;
 use tokio::{io::AsyncWriteExt, net::TcpListener};
 
@@ -40,19 +38,17 @@ async fn main() -> io::Result<()> {
     let listener = TcpListener::bind("127.0.0.1:5000").await?;
     let (mut stream, _) = listener.accept().await?;
 
-    let hs_req = HandshakeRequest::rebuild_from_stream(&mut stream).await?;
+    let request = handshake::Request::rebuild_from_stream(&mut stream).await?;
 
-    if hs_req.methods.contains(&AuthMethod::NoAuth) {
-        let hs_resp = HandshakeResponse::new(AuthMethod::NoAuth);
-        hs_resp.write_to_stream(&mut stream).await?;
+    if request.methods.contains(&AuthMethod::NoAuth) {
+        let response = handshake::Response::new(AuthMethod::NoAuth);
+        response.write_to_stream(&mut stream).await?;
     } else {
-        let hs_resp = HandshakeResponse::new(AuthMethod::NoAcceptableMethods);
-        hs_resp.write_to_stream(&mut stream).await?;
+        let response = handshake::Response::new(AuthMethod::NoAcceptableMethods);
+        response.write_to_stream(&mut stream).await?;
         let _ = stream.shutdown().await;
-        return Err(io::Error::new(
-            io::ErrorKind::Unsupported,
-            "No available handshake method provided by client",
-        ));
+        let err = "No available handshake method provided by client";
+        return Err(io::Error::new(io::ErrorKind::Unsupported, err));
     }
 
     let req = match Request::rebuild_from_stream(&mut stream).await {

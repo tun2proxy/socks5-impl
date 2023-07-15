@@ -68,16 +68,17 @@ async fn main() -> Result<()> {
     let query_type = if is_ipv4 { RecordType::A } else { RecordType::AAAA };
     let msg_buf = build_dns_query(&opt.domain, query_type, opt.tcp)?;
 
-    let domain = parse_dns_request(&msg_buf, opt.tcp)?.trim_end_matches('.').to_string();
+    let message = parse_data_to_dns_message(&msg_buf, opt.tcp)?;
+    let domain = extract_domain_from_dns_message(&message)?.trim_end_matches('.').to_string();
     assert_eq!(&domain, &opt.domain);
 
     let buf = dns_query_from_server(&opt, &msg_buf).await?;
 
-    let addr = parse_dns_response(&buf, opt.tcp)?;
-
-    let domain = parse_dns_request(&buf, opt.tcp)?.trim_end_matches('.').to_string();
+    let message = parse_data_to_dns_message(&buf, opt.tcp)?;
+    let domain = extract_domain_from_dns_message(&message)?.trim_end_matches('.').to_string();
     assert_eq!(&domain, &opt.domain);
 
+    let addr = extract_ipaddr_from_dns_message(&message)?;
     println!("{}", addr);
 
     Ok(())
@@ -118,8 +119,8 @@ async fn dns_query_from_server(opt: &CmdOpt, msg_buf: &[u8]) -> Result<Vec<u8>> 
             buf
         }
         (false, true) => {
-            let proxy_addr = &opt.proxy_addr.as_ref().unwrap().to_string();
-            let udp_server_addr = &opt.remote_dns_server.to_string();
+            let proxy_addr = *opt.proxy_addr.as_ref().unwrap();
+            let udp_server_addr = opt.remote_dns_server;
             client::UdpClientImpl::datagram(proxy_addr, udp_server_addr, user_key)
                 .await?
                 .transfer_data(msg_buf, timeout)
@@ -158,47 +159,42 @@ fn build_dns_query(domain: &str, query_type: RecordType, used_by_tcp: bool) -> R
     }
 }
 
-fn parse_dns_response(response: &[u8], from_tcp: bool) -> Result<IpAddr> {
-    if from_tcp {
-        if response.len() < 2 {
-            return Err("invalid dns response".into());
-        }
-        let len = u16::from_be_bytes([response[0], response[1]]) as usize;
-        let response = response.get(2..len + 2).ok_or("invalid dns response")?;
-        return parse_dns_response(response, false);
-    }
-    let message = Message::from_vec(response).map_err(|e| e.to_string())?;
+fn extract_ipaddr_from_dns_message(message: &Message) -> Result<IpAddr, String> {
     if message.response_code() != NoError {
-        return Err("Error::DnsResponse(message.response_code())".into());
+        return Err(format!("{:?}", message.response_code()));
     }
     for answer in message.answers() {
-        match answer.data().ok_or("Error::DnsResponse(answer.data())")? {
+        match answer.data().ok_or("DnsResponse no answer data")? {
             RData::A(addr) => {
                 return Ok(IpAddr::V4(*addr));
             }
             RData::AAAA(addr) => {
                 return Ok(IpAddr::V6(*addr));
             }
-            RData::CNAME(name) => {
-                log::trace!("{}: {}", answer.name(), name);
+            RData::CNAME(_name) => {
+                // log::trace!("{}: {}", answer.name(), _name);
             }
             _ => {}
         }
     }
-    Err("Error::DnsResponse(NoError)".into())
+    Err(format!("{:?}", message.answers()))
 }
 
-fn parse_dns_request(request: &[u8], used_by_tcp: bool) -> Result<String> {
-    if used_by_tcp {
-        if request.len() < 2 {
-            return Err("invalid dns request".into());
-        }
-        let len = u16::from_be_bytes([request[0], request[1]]) as usize;
-        let request = request.get(2..len + 2).ok_or("invalid dns request")?;
-        return parse_dns_request(request, false);
-    }
-    let message = Message::from_vec(request).map_err(|e| e.to_string())?;
-    let query = message.queries().get(0).ok_or("Error::DnsRequest(message.queries())")?;
+fn extract_domain_from_dns_message(message: &Message) -> Result<String> {
+    let query = message.queries().get(0).ok_or("DnsRequest no query body")?;
     let name = query.name().to_string();
     Ok(name)
+}
+
+fn parse_data_to_dns_message(data: &[u8], used_by_tcp: bool) -> Result<Message, String> {
+    if used_by_tcp {
+        if data.len() < 2 {
+            return Err("invalid dns data".into());
+        }
+        let len = u16::from_be_bytes([data[0], data[1]]) as usize;
+        let data = data.get(2..len + 2).ok_or("invalid dns data")?;
+        return parse_data_to_dns_message(data, false);
+    }
+    let message = Message::from_vec(data).map_err(|e| e.to_string())?;
+    Ok(message)
 }
