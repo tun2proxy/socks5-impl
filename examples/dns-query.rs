@@ -46,7 +46,7 @@ pub struct CmdOpt {
     tcp: bool,
 
     /// Timeout in seconds.
-    #[clap(short = 'm', long, value_name = "seconds", default_value = "2")]
+    #[clap(short = 'm', long, value_name = "seconds", default_value = "5")]
     timeout: u64,
 }
 
@@ -112,7 +112,6 @@ async fn dns_query_from_server(opt: &CmdOpt, msg_buf: &[u8]) -> Result<Vec<u8>> 
             let mut stream = TcpStream::connect(&opt.remote_dns_server).await?;
             stream.write_all(msg_buf).await?;
             stream.flush().await?;
-            tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
             let mut buf = vec![0; 1500];
             let n = tokio::time::timeout(timeout, stream.read(&mut buf)).await??;
             buf.truncate(n);

@@ -1,17 +1,21 @@
 use moka::future::Cache;
-use socks5_impl::{client, protocol::UserKey, Result};
+use socks5_impl::{client, protocol::UserKey, Error, Result};
 use std::{
     net::{IpAddr, SocketAddr},
+    sync::Arc,
     time::Duration,
 };
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt, BufStream},
     net::{TcpListener, TcpStream, UdpSocket},
+    sync::mpsc,
 };
 use trust_dns_proto::{
     op::{Message, Query, ResponseCode::NoError},
     rr::RData,
 };
+
+const MAX_BUFFER_SIZE: usize = 4096;
 
 /// Proxy server to routing DNS query to SOCKS5 server
 #[derive(clap::Parser, Debug, Clone, PartialEq, Eq)]
@@ -37,7 +41,7 @@ pub struct CmdOpt {
     #[clap(short, long, value_name = "password")]
     password: Option<String>,
 
-    /// Cache dns query records
+    /// Cache DNS query records
     #[clap(short, long)]
     cache_records: bool,
 
@@ -69,15 +73,15 @@ async fn main() -> Result<()> {
     tokio::select! {
         res = tokio::spawn(udp_thread(opt.clone(), user_key.clone(), cache.clone())) => {
             match res {
-                Ok(Err(e)) => log::error!("UDP error: {}", e),
-                Err(e) => log::error!("UDP error: {}", e),
+                Ok(Err(e)) => log::error!("UDP error \"{}\"", e),
+                Err(e) => log::error!("UDP error \"{}\"", e),
                 _ => {}
             }
         },
         res = tokio::spawn(tcp_thread(opt, user_key, cache)) => {
             match res {
-                Ok(Err(e)) => log::error!("TCP error: {}", e),
-                Err(e) => log::error!("TCP error: {}", e),
+                Ok(Err(e)) => log::error!("TCP error \"{}\"", e),
+                Err(e) => log::error!("TCP error \"{}\"", e),
                 _ => {}
             }
         },
@@ -87,17 +91,16 @@ async fn main() -> Result<()> {
 }
 
 async fn udp_thread(opt: CmdOpt, user_key: Option<UserKey>, cache: Cache<Vec<Query>, Message>) -> Result<()> {
-    async fn _udp_thread(opt: CmdOpt, user_key: Option<UserKey>, cache: Cache<Vec<Query>, Message>) -> Result<()> {
-        let listener = UdpSocket::bind(&opt.listen_addr).await?;
-        log::info!("Udp listening on: {}", opt.listen_addr);
+    let udp_listener = Arc::new(UdpSocket::bind(&opt.listen_addr).await?);
+    log::info!("Udp listening on: {}", opt.listen_addr);
+    let (sender, mut receiver) = mpsc::channel::<(SocketAddr, Vec<u8>)>(1024);
 
-        let timeout = Duration::from_secs(5);
+    let timeout = Duration::from_secs(5);
 
-        let mut buf = [0u8; 4096];
-        loop {
-            let (len, src) = listener.recv_from(&mut buf).await?;
-
-            let message = parse_data_to_dns_message(&buf[..len], false)?;
+    let listener = udp_listener.clone();
+    tokio::spawn(async move {
+        while let Some((src, buf)) = receiver.recv().await {
+            let message = parse_data_to_dns_message(&buf, false)?;
             let domain = extract_domain_from_dns_message(&message)?;
 
             if opt.cache_records {
@@ -105,7 +108,7 @@ async fn udp_thread(opt: CmdOpt, user_key: Option<UserKey>, cache: Cache<Vec<Que
                     cached_message.set_id(message.id());
                     let data = cached_message.to_vec().map_err(|e| e.to_string())?;
                     listener.send_to(&data, &src).await?;
-                    log_dns_message("dns cache hit", &domain, &cached_message);
+                    log_dns_message("DNS query via UDP cache hit", &domain, &cached_message);
                     continue;
                 }
             }
@@ -115,20 +118,30 @@ async fn udp_thread(opt: CmdOpt, user_key: Option<UserKey>, cache: Cache<Vec<Que
             let auth = user_key.clone();
             let data = client::UdpClientImpl::datagram(proxy_addr, udp_server_addr, auth)
                 .await?
-                .transfer_data(&buf[..len], timeout)
+                .transfer_data(&buf, timeout)
                 .await?;
             listener.send_to(&data, &src).await?;
 
             let message = parse_data_to_dns_message(&data, false)?;
-            log_dns_message("dns query", &domain, &message);
+            log_dns_message("DNS query via UDP", &domain, &message);
             if opt.cache_records {
                 cache.insert(message.queries().to_vec(), message).await;
             }
         }
-    }
+        Ok::<(), Error>(())
+    });
 
     loop {
-        if let Err(e) = _udp_thread(opt.clone(), user_key.clone(), cache.clone()).await {
+        let udp_listener = udp_listener.clone();
+        let sender = sender.clone();
+        let block = async move {
+            let mut buf = vec![0u8; MAX_BUFFER_SIZE];
+            let (len, src) = udp_listener.recv_from(&mut buf).await?;
+            buf.resize(len, 0);
+            sender.send((src, buf)).await.map_err(|e| e.to_string())?;
+            Ok::<(), Error>(())
+        };
+        if let Err(e) = block.await {
             log::error!("UDP error \"{}\"", e);
         }
     }
@@ -144,7 +157,7 @@ async fn tcp_thread(opt: CmdOpt, user_key: Option<UserKey>, cache: Cache<Vec<Que
         let cache = cache.clone();
         tokio::spawn(async move {
             if let Err(e) = handle_tcp_incoming(&opt, user_key, cache, &mut incoming).await {
-                log::error!("{}", e);
+                log::error!("TCP error \"{}\"", e);
             }
         });
     }
@@ -157,13 +170,8 @@ async fn handle_tcp_incoming(
     cache: Cache<Vec<Query>, Message>,
     incoming: &mut TcpStream,
 ) -> Result<()> {
-    let mut buf = [0u8; 4096];
+    let mut buf = [0u8; MAX_BUFFER_SIZE];
     let n = incoming.read(&mut buf).await?;
-
-    let s5_proxy = TcpStream::connect(&opt.socks5_server).await?;
-    let mut stream = BufStream::new(s5_proxy);
-
-    let _addr = client::connect(&mut stream, &opt.dns_remote_server, user_key).await?;
 
     let message = parse_data_to_dns_message(&buf[..n], true)?;
     let domain = extract_domain_from_dns_message(&message)?;
@@ -172,11 +180,18 @@ async fn handle_tcp_incoming(
         if let Some(mut cached_message) = cache.get(&message.queries().to_vec()) {
             cached_message.set_id(message.id());
             let data = cached_message.to_vec().map_err(|e| e.to_string())?;
+            let len = u16::try_from(data.len()).map_err(|e| e.to_string())?.to_be_bytes().to_vec();
+            let data = [len, data].concat();
             incoming.write_all(&data).await?;
-            log_dns_message("dns via TCP cache hit", &domain, &cached_message);
+            log_dns_message("DNS query via TCP cache hit", &domain, &cached_message);
             return Ok(());
         }
     }
+
+    let s5_proxy = TcpStream::connect(&opt.socks5_server).await?;
+    let mut stream = BufStream::new(s5_proxy);
+
+    let _addr = client::connect(&mut stream, &opt.dns_remote_server, user_key).await?;
 
     stream.write_all(&buf[..n]).await?;
     stream.flush().await?;
@@ -187,7 +202,7 @@ async fn handle_tcp_incoming(
     incoming.write_all(&buf[..n]).await?;
 
     let message = parse_data_to_dns_message(&buf[..n], true)?;
-    log_dns_message("dns query via TCP", &domain, &message);
+    log_dns_message("DNS query via TCP", &domain, &message);
 
     if opt.cache_records {
         cache.insert(message.queries().to_vec(), message).await;
@@ -211,15 +226,12 @@ fn extract_ipaddr_from_dns_message(message: &Message) -> Result<IpAddr, String> 
         return Err(format!("{:?}", message.response_code()));
     }
     for answer in message.answers() {
-        match answer.data().ok_or("DnsResponse no answer data")? {
+        match answer.data().ok_or("DNS response not contains answer data")? {
             RData::A(addr) => {
                 return Ok(IpAddr::V4(*addr));
             }
             RData::AAAA(addr) => {
                 return Ok(IpAddr::V6(*addr));
-            }
-            RData::CNAME(_name) => {
-                // log::trace!("{}: {}", answer.name(), _name);
             }
             _ => {}
         }
@@ -228,7 +240,7 @@ fn extract_ipaddr_from_dns_message(message: &Message) -> Result<IpAddr, String> 
 }
 
 fn extract_domain_from_dns_message(message: &Message) -> Result<String> {
-    let query = message.queries().get(0).ok_or("DnsRequest no query body")?;
+    let query = message.queries().get(0).ok_or("DNS request not contains query body")?;
     let name = query.name().to_string();
     Ok(name)
 }
@@ -236,10 +248,10 @@ fn extract_domain_from_dns_message(message: &Message) -> Result<String> {
 fn parse_data_to_dns_message(data: &[u8], used_by_tcp: bool) -> Result<Message, String> {
     if used_by_tcp {
         if data.len() < 2 {
-            return Err("invalid dns data".into());
+            return Err("Invalid DNS data".into());
         }
         let len = u16::from_be_bytes([data[0], data[1]]) as usize;
-        let data = data.get(2..len + 2).ok_or("invalid dns data")?;
+        let data = data.get(2..len + 2).ok_or("Invalid DNS data")?;
         return parse_data_to_dns_message(data, false);
     }
     let message = Message::from_vec(data).map_err(|e| e.to_string())?;
