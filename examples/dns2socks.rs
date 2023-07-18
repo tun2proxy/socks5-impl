@@ -8,7 +8,7 @@ use std::{
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt, BufStream},
     net::{TcpListener, TcpStream, UdpSocket},
-    sync::mpsc,
+    sync::mpsc::{self, Receiver},
 };
 use trust_dns_proto::{
     op::{Message, Query, ResponseCode::NoError},
@@ -98,7 +98,16 @@ async fn udp_thread(opt: CmdOpt, user_key: Option<UserKey>, cache: Cache<Vec<Que
     let timeout = Duration::from_secs(5);
 
     let listener = udp_listener.clone();
-    tokio::spawn(async move {
+
+    // to avoid move semantic occurs, we defined a function instead of a closure
+    async fn channel_end(
+        receiver: &mut Receiver<(SocketAddr, Vec<u8>)>,
+        opt: &CmdOpt,
+        cache: &Cache<Vec<Query>, Message>,
+        listener: &Arc<UdpSocket>,
+        user_key: &Option<UserKey>,
+        timeout: Duration,
+    ) -> Result<()> {
         while let Some((src, buf)) = receiver.recv().await {
             let message = parse_data_to_dns_message(&buf, false)?;
             let domain = extract_domain_from_dns_message(&message)?;
@@ -129,6 +138,14 @@ async fn udp_thread(opt: CmdOpt, user_key: Option<UserKey>, cache: Cache<Vec<Que
             }
         }
         Ok::<(), Error>(())
+    }
+
+    tokio::spawn(async move {
+        loop {
+            if let Err(e) = channel_end(&mut receiver, &opt, &cache, &listener, &user_key, timeout).await {
+                log::error!("UDP channel_end thread error \"{}\"", e);
+            }
+        }
     });
 
     loop {
@@ -142,7 +159,7 @@ async fn udp_thread(opt: CmdOpt, user_key: Option<UserKey>, cache: Cache<Vec<Que
             Ok::<(), Error>(())
         };
         if let Err(e) = block.await {
-            log::error!("UDP error \"{}\"", e);
+            log::error!("UDP listener error \"{}\"", e);
         }
     }
 }
