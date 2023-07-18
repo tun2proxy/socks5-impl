@@ -120,7 +120,11 @@ impl<O: 'static> IncomingConnection<O> {
 
     fn evaluate_request(&self, req: &handshake::Request) -> Option<AuthMethod> {
         let method = self.auth.auth_method();
-        req.methods.iter().find(|&&m| m == method).copied()
+        if req.evaluate_method(method) {
+            Some(method)
+        } else {
+            None
+        }
     }
 }
 

@@ -9,7 +9,7 @@ async fn main() -> io::Result<()> {
 
     let request = handshake::Request::async_rebuild_from_stream(&mut stream).await?;
 
-    if request.methods.contains(&AuthMethod::NoAuth) {
+    if request.evaluate_method(AuthMethod::NoAuth) {
         let response = handshake::Response::new(AuthMethod::NoAuth);
         response.async_write_to_stream(&mut stream).await?;
     } else {

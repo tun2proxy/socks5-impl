@@ -13,12 +13,16 @@ use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 /// ```
 #[derive(Clone, Debug)]
 pub struct Request {
-    pub methods: Vec<AuthMethod>,
+    methods: Vec<AuthMethod>,
 }
 
 impl Request {
     pub fn new(methods: Vec<AuthMethod>) -> Self {
         Self { methods }
+    }
+
+    pub fn evaluate_method(&self, server_method: AuthMethod) -> bool {
+        self.methods.iter().any(|&m| m == server_method)
     }
 
     pub fn rebuild_from_stream<R: std::io::Read>(r: &mut R) -> std::io::Result<Self> {

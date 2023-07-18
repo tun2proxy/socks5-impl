@@ -257,6 +257,15 @@ impl TryFrom<Vec<u8>> for Address {
     }
 }
 
+impl TryFrom<&[u8]> for Address {
+    type Error = std::io::Error;
+
+    fn try_from(data: &[u8]) -> std::result::Result<Self, Self::Error> {
+        let mut rdr = Cursor::new(data);
+        Self::rebuild_from_stream(&mut rdr)
+    }
+}
+
 impl From<SocketAddr> for Address {
     fn from(addr: SocketAddr) -> Self {
         Address::SocketAddress(addr)

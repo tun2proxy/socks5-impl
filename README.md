@@ -37,7 +37,7 @@ fn main() -> socks5_impl::Result<()> {
 
     let request = handshake::Request::rebuild_from_stream(&mut stream)?;
 
-    if request.methods.contains(&AuthMethod::NoAuth) {
+    if request.evaluate_method(AuthMethod::NoAuth) {
         let response = handshake::Response::new(AuthMethod::NoAuth);
         response.write_to_stream(&mut stream)?;
     } else {
