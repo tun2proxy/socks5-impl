@@ -55,7 +55,7 @@ impl Bind<NeedFirstReply> {
     /// If encountered an error while writing the reply, the error alongside the original `TcpStream` is returned.
     pub async fn reply(mut self, reply: Reply, addr: Address) -> std::io::Result<Bind<NeedSecondReply>> {
         let resp = Response::new(reply, addr);
-        resp.write_to(&mut self.stream).await?;
+        resp.async_write_to_stream(&mut self.stream).await?;
         Ok(Bind::<NeedSecondReply>::new(self.stream))
     }
 
@@ -147,7 +147,7 @@ impl Bind<NeedSecondReply> {
     pub async fn reply(mut self, reply: Reply, addr: Address) -> Result<Bind<Ready>, (std::io::Error, TcpStream)> {
         let resp = Response::new(reply, addr);
 
-        if let Err(err) = resp.write_to(&mut self.stream).await {
+        if let Err(err) = resp.async_write_to_stream(&mut self.stream).await {
             return Err((err, self.stream));
         }
 

@@ -22,19 +22,35 @@ impl UdpHeader {
         Self { frag, address }
     }
 
+    pub fn rebuild_from_stream<R: std::io::Read>(stream: &mut R) -> std::io::Result<Self> {
+        let mut buf = [0; 3];
+        stream.read_exact(&mut buf)?;
+
+        let frag = buf[2];
+
+        let address = Address::rebuild_from_stream(stream)?;
+        Ok(Self { frag, address })
+    }
+
     #[cfg(feature = "tokio")]
-    pub async fn from_stream<R: AsyncRead + Unpin>(r: &mut R) -> std::io::Result<Self> {
+    pub async fn async_rebuild_from_stream<R: AsyncRead + Unpin>(r: &mut R) -> std::io::Result<Self> {
         let mut buf = [0; 3];
         r.read_exact(&mut buf).await?;
 
         let frag = buf[2];
 
-        let address = Address::from_stream(r).await?;
+        let address = Address::async_rebuild_from_stream(r).await?;
         Ok(Self { frag, address })
     }
 
+    pub fn write_to_stream<W: std::io::Write>(&self, w: &mut W) -> std::io::Result<()> {
+        let mut buf = Vec::with_capacity(self.serialized_len());
+        self.write_to_buf(&mut buf);
+        w.write_all(&buf)
+    }
+
     #[cfg(feature = "tokio")]
-    pub async fn write_to<W: AsyncWrite + Unpin>(&self, w: &mut W) -> std::io::Result<()> {
+    pub async fn async_write_to_stream<W: AsyncWrite + Unpin>(&self, w: &mut W) -> std::io::Result<()> {
         let mut buf = bytes::BytesMut::with_capacity(self.serialized_len());
         self.write_to_buf(&mut buf);
         w.write_all(&buf).await

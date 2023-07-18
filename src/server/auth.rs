@@ -78,11 +78,11 @@ impl AuthExecutor for UserKeyAuth {
     }
 
     async fn execute(&self, stream: &mut TcpStream) -> Self::Output {
-        let req = password_method::Request::rebuild_from_stream(stream).await?;
+        let req = password_method::Request::async_rebuild_from_stream(stream).await?;
 
         let is_equal = req.user_key == self.user_key;
         let resp = password_method::Response::new(is_equal);
-        resp.write_to_stream(stream).await?;
+        resp.async_write_to_stream(stream).await?;
         if is_equal {
             Ok(true)
         } else {

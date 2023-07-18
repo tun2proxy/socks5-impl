@@ -1,6 +1,6 @@
 [package]
 name = "socks5-impl"
-version = "0.3.7"
+version = "0.4.0"
 authors = ["ssrlive <ssrlivebox@gmail.com>"]
 description = "Fundamental abstractions and async read / write functions for SOCKS5 protocol and Relatively low-level asynchronized SOCKS5 server implementation based on tokio"
 categories = ["network-programming", "asynchronous"]
@@ -31,3 +31,33 @@ moka = { version = "0.11", features = ["future"] }
 rand = "0.8"
 tokio = { version = "1.29", features = ["macros", "rt-multi-thread"] }
 trust-dns-proto = "0.22"
+
+[[example]]
+name = "demo-client"
+path = "examples/demo-client.rs"
+required-features = ["tokio"]
+
+[[example]]
+name = "demo-server"
+path = "examples/demo-server.rs"
+required-features = ["tokio"]
+
+[[example]]
+name = "dns-query"
+path = "examples/dns-query.rs"
+required-features = ["tokio"]
+
+[[example]]
+name = "dns2socks"
+path = "examples/dns2socks.rs"
+required-features = ["tokio"]
+
+[[example]]
+name = "simple-server"
+path = "examples/simple-server.rs"
+required-features = ["tokio"]
+
+[[example]]
+name = "udp-client"
+path = "examples/udp-client.rs"
+required-features = ["tokio"]

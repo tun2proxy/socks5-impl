@@ -61,7 +61,7 @@ impl Connect<NeedReply> {
     #[inline]
     pub async fn reply(mut self, reply: Reply, addr: Address) -> std::io::Result<Connect<Ready>> {
         let resp = Response::new(reply, addr);
-        resp.write_to(&mut self.stream).await?;
+        resp.async_write_to_stream(&mut self.stream).await?;
         Ok(Connect::<Ready>::new(self.stream))
     }
 }

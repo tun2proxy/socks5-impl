@@ -30,34 +30,31 @@ Check [examples](https://github.com/ssrlive/socks5-impl/tree/master/examples) fo
 
 ```rust no_run
 use socks5_impl::protocol::{handshake, Address, AuthMethod, Reply, Request, Response};
-use std::io;
-use tokio::{io::AsyncWriteExt, net::TcpListener};
 
-#[tokio::main]
-async fn main() -> io::Result<()> {
-    let listener = TcpListener::bind("127.0.0.1:5000").await?;
-    let (mut stream, _) = listener.accept().await?;
+fn main() -> socks5_impl::Result<()> {
+    let listener = std::net::TcpListener::bind("127.0.0.1:5000")?;
+    let (mut stream, _) = listener.accept()?;
 
-    let request = handshake::Request::rebuild_from_stream(&mut stream).await?;
+    let request = handshake::Request::rebuild_from_stream(&mut stream)?;
 
     if request.methods.contains(&AuthMethod::NoAuth) {
         let response = handshake::Response::new(AuthMethod::NoAuth);
-        response.write_to_stream(&mut stream).await?;
+        response.write_to_stream(&mut stream)?;
     } else {
         let response = handshake::Response::new(AuthMethod::NoAcceptableMethods);
-        response.write_to_stream(&mut stream).await?;
-        let _ = stream.shutdown().await;
+        response.write_to_stream(&mut stream)?;
+        let _ = stream.shutdown(std::net::Shutdown::Both);
         let err = "No available handshake method provided by client";
-        return Err(io::Error::new(io::ErrorKind::Unsupported, err));
+        return Err(std::io::Error::new(std::io::ErrorKind::Unsupported, err).into());
     }
 
-    let req = match Request::rebuild_from_stream(&mut stream).await {
+    let req = match Request::rebuild_from_stream(&mut stream) {
         Ok(req) => req,
         Err(err) => {
             let resp = Response::new(Reply::GeneralFailure, Address::unspecified());
-            resp.write_to(&mut stream).await?;
-            let _ = stream.shutdown().await;
-            return Err(err);
+            resp.write_to_stream(&mut stream)?;
+            let _ = stream.shutdown(std::net::Shutdown::Both);
+            return Err(err.into());
         }
     };
 

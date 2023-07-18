@@ -1,3 +1,5 @@
+#![cfg(feature = "tokio")]
+
 use std::{
     net::SocketAddr,
     task::{Context, Poll},

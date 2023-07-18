@@ -1,11 +1,10 @@
-use byteorder::{BigEndian, ReadBytesExt};
 use bytes::BufMut;
 use std::{
     io::Cursor,
     net::{Ipv4Addr, Ipv6Addr, SocketAddr, ToSocketAddrs},
 };
 #[cfg(feature = "tokio")]
-use tokio::io::{AsyncRead, AsyncReadExt};
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 #[repr(u8)]
@@ -71,55 +70,25 @@ impl Address {
         }
     }
 
-    #[cfg(feature = "tokio")]
-    pub async fn addr_data_from_stream<R: AsyncRead + Unpin>(stream: &mut R) -> std::io::Result<Vec<u8>> {
-        let mut addr_data = Vec::new();
-        let atyp = stream.read_u8().await?;
-        addr_data.push(atyp);
-        match AddressType::try_from(atyp)? {
+    pub fn rebuild_from_stream<R: std::io::Read>(stream: &mut R) -> std::io::Result<Self> {
+        let mut atyp = [0; 1];
+        stream.read_exact(&mut atyp)?;
+        match AddressType::try_from(atyp[0])? {
             AddressType::IPv4 => {
                 let mut buf = [0; 6];
-                stream.read_exact(&mut buf).await?;
-                addr_data.extend_from_slice(&buf);
-            }
-            AddressType::Domain => {
-                let len = stream.read_u8().await? as usize;
-                let mut buf = vec![0; len + 2];
-                stream.read_exact(&mut buf).await?;
-
-                addr_data.push(len as u8);
-                addr_data.extend_from_slice(&buf);
-            }
-            AddressType::IPv6 => {
-                let mut buf = [0; 18];
-                stream.read_exact(&mut buf).await?;
-                addr_data.extend_from_slice(&buf);
-            }
-        }
-        Ok(addr_data)
-    }
-
-    pub fn from_data(data: &[u8]) -> std::io::Result<Self> {
-        let mut rdr = Cursor::new(data);
-        let atyp = ReadBytesExt::read_u8(&mut rdr)?;
-        match AddressType::try_from(atyp)? {
-            AddressType::IPv4 => {
-                let addr = Ipv4Addr::new(
-                    ReadBytesExt::read_u8(&mut rdr)?,
-                    ReadBytesExt::read_u8(&mut rdr)?,
-                    ReadBytesExt::read_u8(&mut rdr)?,
-                    ReadBytesExt::read_u8(&mut rdr)?,
-                );
-
-                let port = ReadBytesExt::read_u16::<BigEndian>(&mut rdr)?;
-
+                stream.read_exact(&mut buf)?;
+                let addr = Ipv4Addr::new(buf[0], buf[1], buf[2], buf[3]);
+                let port = u16::from_be_bytes([buf[4], buf[5]]);
                 Ok(Self::SocketAddress(SocketAddr::from((addr, port))))
             }
             AddressType::Domain => {
-                let len = ReadBytesExt::read_u8(&mut rdr)? as usize;
-                let mut buf = data[2..2 + len + 2].to_vec();
+                let mut len = [0; 1];
+                stream.read_exact(&mut len)?;
+                let len = len[0] as usize;
+                let mut buf = vec![0; len + 2];
+                stream.read_exact(&mut buf)?;
 
-                let port = ReadBytesExt::read_u16::<BigEndian>(&mut &buf[len..])?;
+                let port = u16::from_be_bytes([buf[len], buf[len + 1]]);
                 buf.truncate(len);
 
                 let addr = match String::from_utf8(buf) {
@@ -129,30 +98,69 @@ impl Address {
                         return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, err));
                     }
                 };
-
                 Ok(Self::DomainAddress(addr, port))
             }
             AddressType::IPv6 => {
-                let addr = Ipv6Addr::new(
-                    ReadBytesExt::read_u16::<BigEndian>(&mut rdr)?,
-                    ReadBytesExt::read_u16::<BigEndian>(&mut rdr)?,
-                    ReadBytesExt::read_u16::<BigEndian>(&mut rdr)?,
-                    ReadBytesExt::read_u16::<BigEndian>(&mut rdr)?,
-                    ReadBytesExt::read_u16::<BigEndian>(&mut rdr)?,
-                    ReadBytesExt::read_u16::<BigEndian>(&mut rdr)?,
-                    ReadBytesExt::read_u16::<BigEndian>(&mut rdr)?,
-                    ReadBytesExt::read_u16::<BigEndian>(&mut rdr)?,
-                );
-                let port = ReadBytesExt::read_u16::<BigEndian>(&mut rdr)?;
-                Ok(Self::SocketAddress(SocketAddr::from((addr, port))))
+                let mut buf = [0; 18];
+                stream.read_exact(&mut buf)?;
+                let port = u16::from_be_bytes([buf[16], buf[17]]);
+                let mut addr_bytes = [0; 16];
+                addr_bytes.copy_from_slice(&buf[..16]);
+                Ok(Self::SocketAddress(SocketAddr::from((Ipv6Addr::from(addr_bytes), port))))
             }
         }
     }
 
     #[cfg(feature = "tokio")]
-    pub async fn from_stream<R: AsyncRead + Unpin>(stream: &mut R) -> std::io::Result<Self> {
-        let addr_data = Self::addr_data_from_stream(stream).await?;
-        Self::from_data(&addr_data)
+    pub async fn async_rebuild_from_stream<R: AsyncRead + Unpin>(stream: &mut R) -> std::io::Result<Self> {
+        let atyp = stream.read_u8().await?;
+        match AddressType::try_from(atyp)? {
+            AddressType::IPv4 => {
+                let mut buf = [0; 6];
+                stream.read_exact(&mut buf).await?;
+                let addr = Ipv4Addr::new(buf[0], buf[1], buf[2], buf[3]);
+                let port = u16::from_be_bytes([buf[4], buf[5]]);
+                Ok(Self::SocketAddress(SocketAddr::from((addr, port))))
+            }
+            AddressType::Domain => {
+                let len = stream.read_u8().await? as usize;
+                let mut buf = vec![0; len + 2];
+                stream.read_exact(&mut buf).await?;
+
+                let port = u16::from_be_bytes([buf[len], buf[len + 1]]);
+                buf.truncate(len);
+
+                let addr = match String::from_utf8(buf) {
+                    Ok(addr) => addr,
+                    Err(err) => {
+                        let err = format!("Invalid address encoding: {err}");
+                        return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, err));
+                    }
+                };
+                Ok(Self::DomainAddress(addr, port))
+            }
+            AddressType::IPv6 => {
+                let mut buf = [0; 18];
+                stream.read_exact(&mut buf).await?;
+                let port = u16::from_be_bytes([buf[16], buf[17]]);
+                let mut addr_bytes = [0; 16];
+                addr_bytes.copy_from_slice(&buf[..16]);
+                Ok(Self::SocketAddress(SocketAddr::from((Ipv6Addr::from(addr_bytes), port))))
+            }
+        }
+    }
+
+    pub fn write_to_stream<W: std::io::Write>(&self, w: &mut W) -> std::io::Result<()> {
+        let mut buf = Vec::with_capacity(self.serialized_len());
+        self.write_to_buf(&mut buf);
+        w.write_all(&buf)
+    }
+
+    #[cfg(feature = "tokio")]
+    pub async fn async_write_to_stream<W: AsyncWrite + Unpin>(&self, w: &mut W) -> std::io::Result<()> {
+        let mut buf = bytes::BytesMut::with_capacity(self.serialized_len());
+        self.write_to_buf(&mut buf);
+        w.write_all(&buf).await
     }
 
     pub fn write_to_buf<B: BufMut>(&self, buf: &mut B) {
@@ -244,7 +252,8 @@ impl TryFrom<Vec<u8>> for Address {
     type Error = std::io::Error;
 
     fn try_from(data: Vec<u8>) -> std::result::Result<Self, Self::Error> {
-        Self::from_data(&data)
+        let mut rdr = Cursor::new(data);
+        Self::rebuild_from_stream(&mut rdr)
     }
 }
 
