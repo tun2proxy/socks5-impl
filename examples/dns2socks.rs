@@ -65,10 +65,7 @@ async fn main() -> Result<()> {
         _ => None,
     };
 
-    let cache: Cache<Vec<Query>, Message> = Cache::builder()
-        .time_to_live(Duration::from_secs(30 * 60))
-        .time_to_idle(Duration::from_secs(5 * 60))
-        .build();
+    let cache = create_dns_cache();
 
     tokio::select! {
         res = tokio::spawn(udp_thread(opt.clone(), user_key.clone(), cache.clone())) => {
@@ -113,8 +110,7 @@ async fn udp_thread(opt: CmdOpt, user_key: Option<UserKey>, cache: Cache<Vec<Que
             let domain = extract_domain_from_dns_message(&message)?;
 
             if opt.cache_records {
-                if let Some(mut cached_message) = cache.get(&message.queries().to_vec()) {
-                    cached_message.set_id(message.id());
+                if let Some(cached_message) = dns_cache_get_message(cache, &message) {
                     let data = cached_message.to_vec().map_err(|e| e.to_string())?;
                     listener.send_to(&data, &src).await?;
                     log_dns_message("DNS query via UDP cache hit", &domain, &cached_message);
@@ -134,7 +130,7 @@ async fn udp_thread(opt: CmdOpt, user_key: Option<UserKey>, cache: Cache<Vec<Que
             let message = parse_data_to_dns_message(&data, false)?;
             log_dns_message("DNS query via UDP", &domain, &message);
             if opt.cache_records {
-                cache.insert(message.queries().to_vec(), message).await;
+                dns_cache_put_message(cache, &message).await;
             }
         }
         Ok::<(), Error>(())
@@ -194,8 +190,7 @@ async fn handle_tcp_incoming(
     let domain = extract_domain_from_dns_message(&message)?;
 
     if opt.cache_records {
-        if let Some(mut cached_message) = cache.get(&message.queries().to_vec()) {
-            cached_message.set_id(message.id());
+        if let Some(cached_message) = dns_cache_get_message(&cache, &message) {
             let data = cached_message.to_vec().map_err(|e| e.to_string())?;
             let len = u16::try_from(data.len()).map_err(|e| e.to_string())?.to_be_bytes().to_vec();
             let data = [len, data].concat();
@@ -222,7 +217,7 @@ async fn handle_tcp_incoming(
     log_dns_message("DNS query via TCP", &domain, &message);
 
     if opt.cache_records {
-        cache.insert(message.queries().to_vec(), message).await;
+        dns_cache_put_message(&cache, &message).await;
     }
 
     Ok(())
@@ -280,4 +275,23 @@ fn parse_data_to_dns_message(data: &[u8], used_by_tcp: bool) -> Result<Message, 
     }
     let message = Message::from_vec(data).map_err(|e| e.to_string())?;
     Ok(message)
+}
+
+pub(crate) fn create_dns_cache() -> Cache<Vec<Query>, Message> {
+    Cache::builder()
+        .time_to_live(Duration::from_secs(30 * 60))
+        .time_to_idle(Duration::from_secs(5 * 60))
+        .build()
+}
+
+pub(crate) fn dns_cache_get_message(cache: &Cache<Vec<Query>, Message>, message: &Message) -> Option<Message> {
+    if let Some(mut cached_message) = cache.get(&message.queries().to_vec()) {
+        cached_message.set_id(message.id());
+        return Some(cached_message);
+    }
+    None
+}
+
+pub(crate) async fn dns_cache_put_message(cache: &Cache<Vec<Query>, Message>, message: &Message) {
+    cache.insert(message.queries().to_vec(), message.clone()).await;
 }
