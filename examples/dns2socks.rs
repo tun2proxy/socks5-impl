@@ -242,6 +242,7 @@ fn extract_ipaddr_from_dns_message(message: &Message) -> Result<IpAddr, String> 
     if message.response_code() != NoError {
         return Err(format!("{:?}", message.response_code()));
     }
+    let mut cname = None;
     for answer in message.answers() {
         match answer.data().ok_or("DNS response not contains answer data")? {
             RData::A(addr) => {
@@ -250,8 +251,14 @@ fn extract_ipaddr_from_dns_message(message: &Message) -> Result<IpAddr, String> 
             RData::AAAA(addr) => {
                 return Ok(IpAddr::V6(*addr));
             }
+            RData::CNAME(name) => {
+                cname = Some(name.to_utf8());
+            }
             _ => {}
         }
+    }
+    if let Some(cname) = cname {
+        return Err(cname);
     }
     Err(format!("{:?}", message.answers()))
 }
