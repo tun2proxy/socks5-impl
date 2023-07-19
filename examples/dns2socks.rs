@@ -1,5 +1,9 @@
 use moka::future::Cache;
-use socks5_impl::{client, protocol::UserKey, Error, Result};
+use socks5_impl::{
+    client,
+    protocol::{Address, UserKey},
+    Error, Result,
+};
 use std::{
     net::{IpAddr, SocketAddr},
     sync::Arc,
@@ -7,7 +11,7 @@ use std::{
 };
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt, BufStream},
-    net::{TcpListener, TcpStream, UdpSocket},
+    net::{TcpListener, TcpStream, ToSocketAddrs, UdpSocket},
     sync::mpsc::{self, Receiver},
 };
 use trust_dns_proto::{
@@ -41,6 +45,10 @@ pub struct CmdOpt {
     #[clap(short, long, value_name = "password")]
     password: Option<String>,
 
+    /// Force to use TCP to proxy DNS query
+    #[clap(short, long)]
+    force_tcp: bool,
+
     /// Cache DNS query records
     #[clap(short, long)]
     cache_records: bool,
@@ -48,6 +56,10 @@ pub struct CmdOpt {
     /// Verbose mode.
     #[clap(short, long)]
     verbose: bool,
+
+    /// Timeout for DNS query
+    #[clap(short, long, value_name = "seconds", default_value = "5")]
+    timeout: u64,
 }
 
 #[tokio::main]
@@ -65,17 +77,19 @@ async fn main() -> Result<()> {
         _ => None,
     };
 
+    let timeout = Duration::from_secs(opt.timeout);
+
     let cache = create_dns_cache();
 
     tokio::select! {
-        res = tokio::spawn(udp_thread(opt.clone(), user_key.clone(), cache.clone())) => {
+        res = tokio::spawn(udp_thread(opt.clone(), user_key.clone(), cache.clone(), timeout)) => {
             match res {
                 Ok(Err(e)) => log::error!("UDP error \"{}\"", e),
                 Err(e) => log::error!("UDP error \"{}\"", e),
                 _ => {}
             }
         },
-        res = tokio::spawn(tcp_thread(opt, user_key, cache)) => {
+        res = tokio::spawn(tcp_thread(opt, user_key, cache, timeout)) => {
             match res {
                 Ok(Err(e)) => log::error!("TCP error \"{}\"", e),
                 Err(e) => log::error!("TCP error \"{}\"", e),
@@ -87,12 +101,10 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-async fn udp_thread(opt: CmdOpt, user_key: Option<UserKey>, cache: Cache<Vec<Query>, Message>) -> Result<()> {
+async fn udp_thread(opt: CmdOpt, user_key: Option<UserKey>, cache: Cache<Vec<Query>, Message>, timeout: Duration) -> Result<()> {
     let udp_listener = Arc::new(UdpSocket::bind(&opt.listen_addr).await?);
     log::info!("Udp listening on: {}", opt.listen_addr);
     let (sender, mut receiver) = mpsc::channel::<(SocketAddr, Vec<u8>)>(1024);
-
-    let timeout = Duration::from_secs(5);
 
     let listener = udp_listener.clone();
 
@@ -105,7 +117,7 @@ async fn udp_thread(opt: CmdOpt, user_key: Option<UserKey>, cache: Cache<Vec<Que
         user_key: &Option<UserKey>,
         timeout: Duration,
     ) -> Result<()> {
-        while let Some((src, buf)) = receiver.recv().await {
+        while let Some((src, mut buf)) = receiver.recv().await {
             let message = parse_data_to_dns_message(&buf, false)?;
             let domain = extract_domain_from_dns_message(&message)?;
 
@@ -121,13 +133,22 @@ async fn udp_thread(opt: CmdOpt, user_key: Option<UserKey>, cache: Cache<Vec<Que
             let proxy_addr = opt.socks5_server;
             let udp_server_addr = opt.dns_remote_server;
             let auth = user_key.clone();
-            let data = client::UdpClientImpl::datagram(proxy_addr, udp_server_addr, auth)
-                .await?
-                .transfer_data(&buf, timeout)
-                .await?;
-            listener.send_to(&data, &src).await?;
 
-            let message = parse_data_to_dns_message(&data, false)?;
+            let data = if opt.force_tcp {
+                let mut new_buf = (buf.len() as u16).to_be_bytes().to_vec();
+                new_buf.append(&mut buf);
+                tcp_via_socks5_server(proxy_addr, udp_server_addr, auth, &new_buf, timeout).await?
+            } else {
+                client::UdpClientImpl::datagram(proxy_addr, udp_server_addr, auth)
+                    .await?
+                    .transfer_data(&buf, timeout)
+                    .await?
+            };
+            let message = parse_data_to_dns_message(&data, opt.force_tcp)?;
+            let msg_buf = message.to_vec().map_err(|e| e.to_string())?;
+
+            listener.send_to(&msg_buf, &src).await?;
+
             log_dns_message("DNS query via UDP", &domain, &message);
             if opt.cache_records {
                 dns_cache_put_message(cache, &message).await;
@@ -160,7 +181,7 @@ async fn udp_thread(opt: CmdOpt, user_key: Option<UserKey>, cache: Cache<Vec<Que
     }
 }
 
-async fn tcp_thread(opt: CmdOpt, user_key: Option<UserKey>, cache: Cache<Vec<Query>, Message>) -> Result<()> {
+async fn tcp_thread(opt: CmdOpt, user_key: Option<UserKey>, cache: Cache<Vec<Query>, Message>, timeout: Duration) -> Result<()> {
     let listener = TcpListener::bind(&opt.listen_addr).await?;
     log::info!("TCP listening on: {}", opt.listen_addr);
 
@@ -169,7 +190,7 @@ async fn tcp_thread(opt: CmdOpt, user_key: Option<UserKey>, cache: Cache<Vec<Que
         let user_key = user_key.clone();
         let cache = cache.clone();
         tokio::spawn(async move {
-            if let Err(e) = handle_tcp_incoming(&opt, user_key, cache, &mut incoming).await {
+            if let Err(e) = handle_tcp_incoming(&opt, user_key, cache, &mut incoming, timeout).await {
                 log::error!("TCP error \"{}\"", e);
             }
         });
@@ -179,9 +200,10 @@ async fn tcp_thread(opt: CmdOpt, user_key: Option<UserKey>, cache: Cache<Vec<Que
 
 async fn handle_tcp_incoming(
     opt: &CmdOpt,
-    user_key: Option<UserKey>,
+    auth: Option<UserKey>,
     cache: Cache<Vec<Query>, Message>,
     incoming: &mut TcpStream,
+    timeout: Duration,
 ) -> Result<()> {
     let mut buf = [0u8; MAX_BUFFER_SIZE];
     let n = incoming.read(&mut buf).await?;
@@ -200,16 +222,9 @@ async fn handle_tcp_incoming(
         }
     }
 
-    let s5_proxy = TcpStream::connect(&opt.socks5_server).await?;
-    let mut stream = BufStream::new(s5_proxy);
-
-    let _addr = client::connect(&mut stream, &opt.dns_remote_server, user_key).await?;
-
-    stream.write_all(&buf[..n]).await?;
-    stream.flush().await?;
-
-    let mut buf = vec![0; 4096];
-    let n = stream.read(&mut buf).await?;
+    let proxy_addr = opt.socks5_server;
+    let target_server = opt.dns_remote_server;
+    let buf = tcp_via_socks5_server(proxy_addr, target_server, auth, &buf[..n], timeout).await?;
 
     incoming.write_all(&buf[..n]).await?;
 
@@ -221,6 +236,29 @@ async fn handle_tcp_incoming(
     }
 
     Ok(())
+}
+
+async fn tcp_via_socks5_server<A, B>(
+    proxy_addr: A,
+    target_server: B,
+    auth: Option<UserKey>,
+    buf: &[u8],
+    timeout: Duration,
+) -> Result<Vec<u8>>
+where
+    A: ToSocketAddrs,
+    B: Into<Address>,
+{
+    let s5_proxy = TcpStream::connect(proxy_addr).await?;
+    let mut stream = BufStream::new(s5_proxy);
+    let _addr = client::connect(&mut stream, target_server, auth).await?;
+
+    stream.write_all(buf).await?;
+    stream.flush().await?;
+
+    let mut buf = vec![0; MAX_BUFFER_SIZE];
+    let n = tokio::time::timeout(timeout, stream.read(&mut buf)).await??;
+    Ok(buf[..n].to_vec())
 }
 
 fn log_dns_message(prefix: &str, domain: &str, message: &Message) {
