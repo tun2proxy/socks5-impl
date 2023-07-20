@@ -12,7 +12,6 @@ use std::{
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt, BufStream},
     net::{TcpListener, TcpStream, ToSocketAddrs, UdpSocket},
-    sync::mpsc::{self, Receiver},
 };
 use trust_dns_proto::{
     op::{Message, Query, ResponseCode::NoError},
@@ -102,83 +101,79 @@ async fn main() -> Result<()> {
 }
 
 async fn udp_thread(opt: CmdOpt, user_key: Option<UserKey>, cache: Cache<Vec<Query>, Message>, timeout: Duration) -> Result<()> {
-    let udp_listener = Arc::new(UdpSocket::bind(&opt.listen_addr).await?);
+    let listener = Arc::new(UdpSocket::bind(&opt.listen_addr).await?);
     log::info!("Udp listening on: {}", opt.listen_addr);
-    let (sender, mut receiver) = mpsc::channel::<(SocketAddr, Vec<u8>)>(1024);
-
-    let listener = udp_listener.clone();
-
-    // to avoid move semantic occurs, we defined a function instead of a closure
-    async fn channel_end(
-        receiver: &mut Receiver<(SocketAddr, Vec<u8>)>,
-        opt: &CmdOpt,
-        cache: &Cache<Vec<Query>, Message>,
-        listener: &Arc<UdpSocket>,
-        user_key: &Option<UserKey>,
-        timeout: Duration,
-    ) -> Result<()> {
-        while let Some((src, mut buf)) = receiver.recv().await {
-            let message = parse_data_to_dns_message(&buf, false)?;
-            let domain = extract_domain_from_dns_message(&message)?;
-
-            if opt.cache_records {
-                if let Some(cached_message) = dns_cache_get_message(cache, &message) {
-                    let data = cached_message.to_vec().map_err(|e| e.to_string())?;
-                    listener.send_to(&data, &src).await?;
-                    log_dns_message("DNS query via UDP cache hit", &domain, &cached_message);
-                    continue;
-                }
-            }
-
-            let proxy_addr = opt.socks5_server;
-            let udp_server_addr = opt.dns_remote_server;
-            let auth = user_key.clone();
-
-            let data = if opt.force_tcp {
-                let mut new_buf = (buf.len() as u16).to_be_bytes().to_vec();
-                new_buf.append(&mut buf);
-                tcp_via_socks5_server(proxy_addr, udp_server_addr, auth, &new_buf, timeout).await?
-            } else {
-                client::UdpClientImpl::datagram(proxy_addr, udp_server_addr, auth)
-                    .await?
-                    .transfer_data(&buf, timeout)
-                    .await?
-            };
-            let message = parse_data_to_dns_message(&data, opt.force_tcp)?;
-            let msg_buf = message.to_vec().map_err(|e| e.to_string())?;
-
-            listener.send_to(&msg_buf, &src).await?;
-
-            log_dns_message("DNS query via UDP", &domain, &message);
-            if opt.cache_records {
-                dns_cache_put_message(cache, &message).await;
-            }
-        }
-        Ok::<(), Error>(())
-    }
-
-    tokio::spawn(async move {
-        loop {
-            if let Err(e) = channel_end(&mut receiver, &opt, &cache, &listener, &user_key, timeout).await {
-                log::error!("UDP channel_end thread error \"{}\"", e);
-            }
-        }
-    });
 
     loop {
-        let udp_listener = udp_listener.clone();
-        let sender = sender.clone();
+        let listener = listener.clone();
+        let opt = opt.clone();
+        let cache = cache.clone();
+        let auth = user_key.clone();
         let block = async move {
             let mut buf = vec![0u8; MAX_BUFFER_SIZE];
-            let (len, src) = udp_listener.recv_from(&mut buf).await?;
+            let (len, src) = listener.recv_from(&mut buf).await?;
             buf.resize(len, 0);
-            sender.send((src, buf)).await.map_err(|e| e.to_string())?;
+            tokio::spawn(async move {
+                if let Err(e) = udp_incoming_handler(listener, buf, src, opt, cache, auth, timeout).await {
+                    log::error!("DNS query via UDP incoming handler error \"{}\"", e);
+                }
+            });
             Ok::<(), Error>(())
         };
         if let Err(e) = block.await {
             log::error!("UDP listener error \"{}\"", e);
         }
     }
+}
+
+async fn udp_incoming_handler(
+    listener: Arc<UdpSocket>,
+    mut buf: Vec<u8>,
+    src: SocketAddr,
+    opt: CmdOpt,
+    cache: Cache<Vec<Query>, Message>,
+    auth: Option<UserKey>,
+    timeout: Duration,
+) -> Result<()> {
+    let message = parse_data_to_dns_message(&buf, false)?;
+    let domain = extract_domain_from_dns_message(&message)?;
+
+    if opt.cache_records {
+        if let Some(cached_message) = dns_cache_get_message(&cache, &message) {
+            let data = cached_message.to_vec().map_err(|e| e.to_string())?;
+            listener.send_to(&data, &src).await?;
+            log_dns_message("DNS query via UDP cache hit", &domain, &cached_message);
+            return Ok(());
+        }
+    }
+
+    let proxy_addr = opt.socks5_server;
+    let udp_server_addr = opt.dns_remote_server;
+
+    let data = if opt.force_tcp {
+        let mut new_buf = (buf.len() as u16).to_be_bytes().to_vec();
+        new_buf.append(&mut buf);
+        tcp_via_socks5_server(proxy_addr, udp_server_addr, auth, &new_buf, timeout)
+            .await
+            .map_err(|e| format!("querying \"{domain}\" {e}"))?
+    } else {
+        client::UdpClientImpl::datagram(proxy_addr, udp_server_addr, auth)
+            .await
+            .map_err(|e| format!("preparing to query \"{domain}\" {e}"))?
+            .transfer_data(&buf, timeout)
+            .await
+            .map_err(|e| format!("querying \"{domain}\" {e}"))?
+    };
+    let message = parse_data_to_dns_message(&data, opt.force_tcp)?;
+    let msg_buf = message.to_vec().map_err(|e| e.to_string())?;
+
+    listener.send_to(&msg_buf, &src).await?;
+
+    log_dns_message("DNS query via UDP", &domain, &message);
+    if opt.cache_records {
+        dns_cache_put_message(&cache, &message).await;
+    }
+    Ok::<(), Error>(())
 }
 
 async fn tcp_thread(opt: CmdOpt, user_key: Option<UserKey>, cache: Cache<Vec<Query>, Message>, timeout: Duration) -> Result<()> {

@@ -37,7 +37,7 @@ pub enum Error {
     #[error("Utf8Error: {0}")]
     Utf8Error(#[from] std::str::Utf8Error),
 
-    #[error("String error: {0}")]
+    #[error("{0}")]
     String(String),
 }
 
