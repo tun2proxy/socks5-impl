@@ -1,6 +1,32 @@
 #[cfg(feature = "tokio")]
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
+#[repr(u8)]
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub enum Status {
+    Succeeded = 0x00,
+    Failed = 0xff,
+}
+
+impl From<Status> for u8 {
+    fn from(value: Status) -> Self {
+        value as u8
+    }
+}
+
+impl TryFrom<u8> for Status {
+    type Error = std::io::Error;
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        let err = format!("Invalid sub-negotiation status {0:#x}", value);
+        match value {
+            0x00 => Ok(Status::Succeeded),
+            0xff => Ok(Status::Failed),
+            _ => Err(std::io::Error::new(std::io::ErrorKind::InvalidData, err)),
+        }
+    }
+}
+
 /// SOCKS5 password handshake response
 ///
 /// ```plain
@@ -10,17 +36,13 @@ use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 /// |  1  |   1    |
 /// +-----+--------+
 /// ```
-
 #[derive(Clone, Debug)]
 pub struct Response {
-    pub status: bool,
+    pub status: Status,
 }
 
 impl Response {
-    const STATUS_FAILED: u8 = 0xff;
-    const STATUS_SUCCEEDED: u8 = 0x00;
-
-    pub fn new(status: bool) -> Self {
+    pub fn new(status: Status) -> Self {
         Self { status }
     }
 
@@ -36,16 +58,8 @@ impl Response {
 
         let mut status = [0; 1];
         r.read_exact(&mut status)?;
-        let status = status[0];
-
-        match status {
-            Self::STATUS_FAILED => Ok(Self { status: false }),
-            Self::STATUS_SUCCEEDED => Ok(Self { status: true }),
-            code => {
-                let err = format!("Invalid sub-negotiation status {0:#x}", code);
-                Err(std::io::Error::new(std::io::ErrorKind::InvalidData, err))
-            }
-        }
+        let status = Status::try_from(status[0])?;
+        Ok(Self { status })
     }
 
     #[cfg(feature = "tokio")]
@@ -57,15 +71,7 @@ impl Response {
             return Err(std::io::Error::new(std::io::ErrorKind::Unsupported, err));
         }
 
-        let status = match r.read_u8().await? {
-            Self::STATUS_FAILED => false,
-            Self::STATUS_SUCCEEDED => true,
-            code => {
-                let err = format!("Invalid sub-negotiation status {0:#x}", code);
-                return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, err));
-            }
-        };
-
+        let status = Status::try_from(r.read_u8().await?)?;
         Ok(Self { status })
     }
 
@@ -86,12 +92,7 @@ impl Response {
 
     pub fn write_to_buf<B: bytes::BufMut>(&self, buf: &mut B) {
         buf.put_u8(super::SUBNEGOTIATION_VERSION);
-
-        if self.status {
-            buf.put_u8(Self::STATUS_SUCCEEDED);
-        } else {
-            buf.put_u8(Self::STATUS_FAILED);
-        }
+        buf.put_u8(self.status.into());
     }
 
     pub fn serialized_len(&self) -> usize {

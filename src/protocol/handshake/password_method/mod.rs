@@ -1,7 +1,10 @@
 mod request;
 mod response;
 
-pub use self::{request::Request, response::Response};
+pub use self::{
+    request::Request,
+    response::{Response, Status},
+};
 
 pub const SUBNEGOTIATION_VERSION: u8 = 0x01;
 
