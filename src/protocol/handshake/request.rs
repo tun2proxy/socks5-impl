@@ -1,4 +1,4 @@
-use crate::protocol::{AuthMethod, SOCKS_VERSION};
+use crate::protocol::{AuthMethod, SOCKS_VERSION_V5};
 #[cfg(feature = "tokio")]
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
@@ -30,7 +30,7 @@ impl Request {
         r.read_exact(&mut ver)?;
         let ver = ver[0];
 
-        if ver != SOCKS_VERSION {
+        if ver != SOCKS_VERSION_V5 {
             let err = format!("Unsupported SOCKS version {0:#x}", ver);
             return Err(std::io::Error::new(std::io::ErrorKind::Unsupported, err));
         }
@@ -51,7 +51,7 @@ impl Request {
     pub async fn async_rebuild_from_stream<R: AsyncRead + Unpin>(r: &mut R) -> std::io::Result<Self> {
         let ver = r.read_u8().await?;
 
-        if ver != SOCKS_VERSION {
+        if ver != SOCKS_VERSION_V5 {
             let err = format!("Unsupported SOCKS version {0:#x}", ver);
             return Err(std::io::Error::new(std::io::ErrorKind::Unsupported, err));
         }
@@ -79,7 +79,7 @@ impl Request {
     }
 
     pub fn write_to_buf<B: bytes::BufMut>(&self, buf: &mut B) {
-        buf.put_u8(SOCKS_VERSION);
+        buf.put_u8(SOCKS_VERSION_V5);
         buf.put_u8(self.methods.len() as u8);
 
         let methods = self.methods.iter().map(u8::from).collect::<Vec<u8>>();
