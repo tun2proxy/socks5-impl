@@ -27,6 +27,15 @@ impl TryFrom<u8> for Status {
     }
 }
 
+impl std::fmt::Display for Status {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Status::Succeeded => write!(f, "Succeeded"),
+            Status::Failed => write!(f, "Failed"),
+        }
+    }
+}
+
 /// SOCKS5 password handshake response
 ///
 /// ```plain
