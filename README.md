@@ -29,13 +29,13 @@ Check [examples](https://github.com/ssrlive/socks5-impl/tree/master/examples) fo
 ## Example
 
 ```rust no_run
-use socks5_impl::protocol::{handshake, Address, AuthMethod, Reply, Request, Response};
+use socks5_impl::protocol::{handshake, Address, AuthMethod, Reply, Request, Response, StreamOperation};
 
 fn main() -> socks5_impl::Result<()> {
     let listener = std::net::TcpListener::bind("127.0.0.1:5000")?;
     let (mut stream, _) = listener.accept()?;
 
-    let request = handshake::Request::rebuild_from_stream(&mut stream)?;
+    let request = handshake::Request::retrieve_from_stream(&mut stream)?;
 
     if request.evaluate_method(AuthMethod::NoAuth) {
         let response = handshake::Response::new(AuthMethod::NoAuth);
@@ -48,7 +48,7 @@ fn main() -> socks5_impl::Result<()> {
         return Err(std::io::Error::new(std::io::ErrorKind::Unsupported, err).into());
     }
 
-    let req = match Request::rebuild_from_stream(&mut stream) {
+    let req = match Request::retrieve_from_stream(&mut stream) {
         Ok(req) => req,
         Err(err) => {
             let resp = Response::new(Reply::GeneralFailure, Address::unspecified());

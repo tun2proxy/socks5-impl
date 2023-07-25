@@ -1,6 +1,10 @@
-use super::UserKey;
 #[cfg(feature = "tokio")]
-use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
+use crate::protocol::AsyncStreamOperation;
+use crate::protocol::{StreamOperation, UserKey};
+#[cfg(feature = "tokio")]
+use async_trait::async_trait;
+#[cfg(feature = "tokio")]
+use tokio::io::{AsyncRead, AsyncReadExt};
 
 /// SOCKS5 password handshake request
 ///
@@ -22,8 +26,10 @@ impl Request {
         let user_key = UserKey::new(username, password);
         Self { user_key }
     }
+}
 
-    pub fn rebuild_from_stream<R: std::io::Read>(r: &mut R) -> std::io::Result<Self> {
+impl StreamOperation for Request {
+    fn retrieve_from_stream<R: std::io::Read>(r: &mut R) -> std::io::Result<Self> {
         let mut ver = [0; 1];
         r.read_exact(&mut ver)?;
         let ver = ver[0];
@@ -51,8 +57,30 @@ impl Request {
         Ok(Self { user_key })
     }
 
-    #[cfg(feature = "tokio")]
-    pub async fn async_rebuild_from_stream<R: AsyncRead + Unpin>(r: &mut R) -> std::io::Result<Self> {
+    fn write_to_buf<B: bytes::BufMut>(&self, buf: &mut B) {
+        buf.put_u8(super::SUBNEGOTIATION_VERSION);
+
+        let username = self.user_key.username_arr();
+        buf.put_u8(username.len() as u8);
+        buf.put_slice(&username);
+
+        let password = self.user_key.password_arr();
+        buf.put_u8(password.len() as u8);
+        buf.put_slice(&password);
+    }
+
+    fn len(&self) -> usize {
+        3 + self.user_key.username_arr().len() + self.user_key.password_arr().len()
+    }
+}
+
+#[cfg(feature = "tokio")]
+#[async_trait]
+impl AsyncStreamOperation for Request {
+    async fn retrieve_from_async_stream<R>(r: &mut R) -> std::io::Result<Self>
+    where
+        R: AsyncRead + Unpin + Send,
+    {
         let ver = r.read_u8().await?;
 
         if ver != super::SUBNEGOTIATION_VERSION {
@@ -74,34 +102,5 @@ impl Request {
 
         let user_key = UserKey::new(username, pwd);
         Ok(Self { user_key })
-    }
-
-    pub fn write_to_stream<W: std::io::Write>(&self, w: &mut W) -> std::io::Result<()> {
-        let mut buf = bytes::BytesMut::with_capacity(self.serialized_len());
-        self.write_to_buf(&mut buf);
-        w.write_all(&buf)
-    }
-
-    #[cfg(feature = "tokio")]
-    pub async fn async_write_to_stream<W: AsyncWrite + Unpin>(&self, w: &mut W) -> std::io::Result<()> {
-        let mut buf = bytes::BytesMut::with_capacity(self.serialized_len());
-        self.write_to_buf(&mut buf);
-        w.write_all(&buf).await
-    }
-
-    pub fn write_to_buf<B: bytes::BufMut>(&self, buf: &mut B) {
-        buf.put_u8(super::SUBNEGOTIATION_VERSION);
-
-        let username = self.user_key.username_arr();
-        buf.put_u8(username.len() as u8);
-        buf.put_slice(&username);
-
-        let password = self.user_key.password_arr();
-        buf.put_u8(password.len() as u8);
-        buf.put_slice(&password);
-    }
-
-    pub fn serialized_len(&self) -> usize {
-        3 + self.user_key.username_arr().len() + self.user_key.password_arr().len()
     }
 }

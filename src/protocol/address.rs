@@ -1,10 +1,15 @@
+#[cfg(feature = "tokio")]
+use crate::protocol::AsyncStreamOperation;
+use crate::protocol::StreamOperation;
+#[cfg(feature = "tokio")]
+use async_trait::async_trait;
 use bytes::BufMut;
 use std::{
     io::Cursor,
     net::{Ipv4Addr, Ipv6Addr, SocketAddr, ToSocketAddrs},
 };
 #[cfg(feature = "tokio")]
-use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
+use tokio::io::{AsyncRead, AsyncReadExt};
 
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 #[repr(u8)]
@@ -37,6 +42,15 @@ impl From<AddressType> for u8 {
     }
 }
 
+/// SOCKS5 Adderss Format
+///
+/// ```plain
+/// +------+----------+----------+
+/// | ATYP | DST.ADDR | DST.PORT |
+/// +------+----------+----------+
+/// |  1   | Variable |    2     |
+/// +------+----------+----------+
+/// ```
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum Address {
     SocketAddress(SocketAddr),
@@ -70,7 +84,13 @@ impl Address {
         }
     }
 
-    pub fn rebuild_from_stream<R: std::io::Read>(stream: &mut R) -> std::io::Result<Self> {
+    pub const fn max_serialized_len() -> usize {
+        1 + 1 + u8::MAX as usize + 2
+    }
+}
+
+impl StreamOperation for Address {
+    fn retrieve_from_stream<R: std::io::Read>(stream: &mut R) -> std::io::Result<Self> {
         let mut atyp = [0; 1];
         stream.read_exact(&mut atyp)?;
         match AddressType::try_from(atyp[0])? {
@@ -111,8 +131,46 @@ impl Address {
         }
     }
 
-    #[cfg(feature = "tokio")]
-    pub async fn async_rebuild_from_stream<R: AsyncRead + Unpin>(stream: &mut R) -> std::io::Result<Self> {
+    fn write_to_buf<B: BufMut>(&self, buf: &mut B) {
+        match self {
+            Self::SocketAddress(SocketAddr::V4(addr)) => {
+                buf.put_u8(AddressType::IPv4.into());
+                buf.put_slice(&addr.ip().octets());
+                buf.put_u16(addr.port());
+            }
+            Self::SocketAddress(SocketAddr::V6(addr)) => {
+                buf.put_u8(AddressType::IPv6.into());
+                for seg in addr.ip().segments() {
+                    buf.put_u16(seg);
+                }
+                buf.put_u16(addr.port());
+            }
+            Self::DomainAddress(addr, port) => {
+                let addr = addr.as_bytes();
+                buf.put_u8(AddressType::Domain.into());
+                buf.put_u8(addr.len() as u8);
+                buf.put_slice(addr);
+                buf.put_u16(*port);
+            }
+        }
+    }
+
+    fn len(&self) -> usize {
+        1 + match self {
+            Address::SocketAddress(SocketAddr::V4(_)) => 4 + 2,
+            Address::SocketAddress(SocketAddr::V6(_)) => 16 + 2,
+            Address::DomainAddress(addr, _) => 1 + addr.len() + 2,
+        }
+    }
+}
+
+#[cfg(feature = "tokio")]
+#[async_trait]
+impl AsyncStreamOperation for Address {
+    async fn retrieve_from_async_stream<R>(stream: &mut R) -> std::io::Result<Self>
+    where
+        R: AsyncRead + Unpin + Send,
+    {
         let atyp = stream.read_u8().await?;
         match AddressType::try_from(atyp)? {
             AddressType::IPv4 => {
@@ -148,55 +206,6 @@ impl Address {
                 Ok(Self::SocketAddress(SocketAddr::from((Ipv6Addr::from(addr_bytes), port))))
             }
         }
-    }
-
-    pub fn write_to_stream<W: std::io::Write>(&self, w: &mut W) -> std::io::Result<()> {
-        let mut buf = Vec::with_capacity(self.serialized_len());
-        self.write_to_buf(&mut buf);
-        w.write_all(&buf)
-    }
-
-    #[cfg(feature = "tokio")]
-    pub async fn async_write_to_stream<W: AsyncWrite + Unpin>(&self, w: &mut W) -> std::io::Result<()> {
-        let mut buf = bytes::BytesMut::with_capacity(self.serialized_len());
-        self.write_to_buf(&mut buf);
-        w.write_all(&buf).await
-    }
-
-    pub fn write_to_buf<B: BufMut>(&self, buf: &mut B) {
-        match self {
-            Self::SocketAddress(SocketAddr::V4(addr)) => {
-                buf.put_u8(AddressType::IPv4.into());
-                buf.put_slice(&addr.ip().octets());
-                buf.put_u16(addr.port());
-            }
-            Self::SocketAddress(SocketAddr::V6(addr)) => {
-                buf.put_u8(AddressType::IPv6.into());
-                for seg in addr.ip().segments() {
-                    buf.put_u16(seg);
-                }
-                buf.put_u16(addr.port());
-            }
-            Self::DomainAddress(addr, port) => {
-                let addr = addr.as_bytes();
-                buf.put_u8(AddressType::Domain.into());
-                buf.put_u8(addr.len() as u8);
-                buf.put_slice(addr);
-                buf.put_u16(*port);
-            }
-        }
-    }
-
-    pub fn serialized_len(&self) -> usize {
-        1 + match self {
-            Address::SocketAddress(SocketAddr::V4(_)) => 4 + 2,
-            Address::SocketAddress(SocketAddr::V6(_)) => 16 + 2,
-            Address::DomainAddress(addr, _) => 1 + addr.len() + 2,
-        }
-    }
-
-    pub const fn max_serialized_len() -> usize {
-        1 + 1 + u8::MAX as usize + 2
     }
 }
 
@@ -242,7 +251,7 @@ impl TryFrom<Address> for SocketAddr {
 
 impl From<Address> for Vec<u8> {
     fn from(addr: Address) -> Self {
-        let mut buf = Vec::with_capacity(addr.serialized_len());
+        let mut buf = Vec::with_capacity(addr.len());
         addr.write_to_buf(&mut buf);
         buf
     }
@@ -253,7 +262,7 @@ impl TryFrom<Vec<u8>> for Address {
 
     fn try_from(data: Vec<u8>) -> std::result::Result<Self, Self::Error> {
         let mut rdr = Cursor::new(data);
-        Self::rebuild_from_stream(&mut rdr)
+        Self::retrieve_from_stream(&mut rdr)
     }
 }
 
@@ -262,7 +271,7 @@ impl TryFrom<&[u8]> for Address {
 
     fn try_from(data: &[u8]) -> std::result::Result<Self, Self::Error> {
         let mut rdr = Cursor::new(data);
-        Self::rebuild_from_stream(&mut rdr)
+        Self::retrieve_from_stream(&mut rdr)
     }
 }
 

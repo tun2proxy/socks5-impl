@@ -2,7 +2,7 @@
 
 use crate::{
     error::{Error, Result},
-    protocol::{Address, AddressType, AuthMethod, Command, Reply, UserKey},
+    protocol::{Address, AddressType, AuthMethod, Command, Reply, StreamOperation, UserKey},
 };
 use async_trait::async_trait;
 use std::{
@@ -408,7 +408,7 @@ where
     //  https://tools.ietf.org/html/rfc1928#page-8
     //
     pub async fn build_socks5_udp_datagram(buf: &[u8], addr: &Address) -> Result<Vec<u8>> {
-        let bytes_size = Self::get_buf_size(addr.serialized_len(), buf.len());
+        let bytes_size = Self::get_buf_size(addr.len(), buf.len());
         let bytes = Vec::with_capacity(bytes_size);
 
         let mut cursor = Cursor::new(bytes);

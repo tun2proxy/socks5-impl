@@ -1,6 +1,10 @@
-use crate::protocol::{Address, Command, SOCKS_VERSION_V5};
 #[cfg(feature = "tokio")]
-use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
+use crate::protocol::AsyncStreamOperation;
+use crate::protocol::{Address, Command, StreamOperation, SOCKS_VERSION_V5};
+#[cfg(feature = "tokio")]
+use async_trait::async_trait;
+#[cfg(feature = "tokio")]
+use tokio::io::{AsyncRead, AsyncReadExt};
 
 /// SOCKS5 request
 ///
@@ -21,8 +25,10 @@ impl Request {
     pub fn new(command: Command, address: Address) -> Self {
         Self { command, address }
     }
+}
 
-    pub fn rebuild_from_stream<R: std::io::Read>(stream: &mut R) -> std::io::Result<Self> {
+impl StreamOperation for Request {
+    fn retrieve_from_stream<R: std::io::Read>(stream: &mut R) -> std::io::Result<Self> {
         let mut ver = [0u8; 1];
         stream.read_exact(&mut ver)?;
         let ver = ver[0];
@@ -36,13 +42,30 @@ impl Request {
         stream.read_exact(&mut buf)?;
 
         let command = Command::try_from(buf[0])?;
-        let address = Address::rebuild_from_stream(stream)?;
+        let address = Address::retrieve_from_stream(stream)?;
 
         Ok(Self { command, address })
     }
 
-    #[cfg(feature = "tokio")]
-    pub async fn async_rebuild_from_stream<R: AsyncRead + Unpin>(r: &mut R) -> std::io::Result<Self> {
+    fn write_to_buf<B: bytes::BufMut>(&self, buf: &mut B) {
+        buf.put_u8(SOCKS_VERSION_V5);
+        buf.put_u8(u8::from(self.command));
+        buf.put_u8(0x00);
+        self.address.write_to_buf(buf);
+    }
+
+    fn len(&self) -> usize {
+        3 + self.address.len()
+    }
+}
+
+#[cfg(feature = "tokio")]
+#[async_trait]
+impl AsyncStreamOperation for Request {
+    async fn retrieve_from_async_stream<R>(r: &mut R) -> std::io::Result<Self>
+    where
+        R: AsyncRead + Unpin + Send,
+    {
         let ver = r.read_u8().await?;
 
         if ver != SOCKS_VERSION_V5 {
@@ -54,32 +77,8 @@ impl Request {
         r.read_exact(&mut buf).await?;
 
         let command = Command::try_from(buf[0])?;
-        let address = Address::async_rebuild_from_stream(r).await?;
+        let address = Address::retrieve_from_async_stream(r).await?;
 
         Ok(Self { command, address })
-    }
-
-    pub fn write_to_stream<W: std::io::Write>(&self, w: &mut W) -> std::io::Result<()> {
-        let mut buf = Vec::with_capacity(self.serialized_len());
-        self.write_to_buf(&mut buf);
-        w.write_all(&buf)
-    }
-
-    #[cfg(feature = "tokio")]
-    pub async fn async_write_to_stream<W: AsyncWrite + Unpin>(&self, w: &mut W) -> std::io::Result<()> {
-        let mut buf = bytes::BytesMut::with_capacity(self.serialized_len());
-        self.write_to_buf(&mut buf);
-        w.write_all(&buf).await
-    }
-
-    pub fn write_to_buf<B: bytes::BufMut>(&self, buf: &mut B) {
-        buf.put_u8(SOCKS_VERSION_V5);
-        buf.put_u8(u8::from(self.command));
-        buf.put_u8(0x00);
-        self.address.write_to_buf(buf);
-    }
-
-    pub fn serialized_len(&self) -> usize {
-        3 + self.address.serialized_len()
     }
 }
