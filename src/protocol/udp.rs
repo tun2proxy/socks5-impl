@@ -1,4 +1,8 @@
-use crate::protocol::address::Address;
+#[cfg(feature = "tokio")]
+use crate::protocol::AsyncStreamOperation;
+use crate::protocol::{Address, StreamOperation};
+#[cfg(feature = "tokio")]
+use async_trait::async_trait;
 #[cfg(feature = "tokio")]
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
@@ -22,7 +26,13 @@ impl UdpHeader {
         Self { frag, address }
     }
 
-    pub fn rebuild_from_stream<R: std::io::Read>(stream: &mut R) -> std::io::Result<Self> {
+    pub const fn max_serialized_len() -> usize {
+        3 + Address::max_serialized_len()
+    }
+}
+
+impl StreamOperation for UdpHeader {
+    fn retrieve_from_stream<R: std::io::Read>(stream: &mut R) -> std::io::Result<Self> {
         let mut buf = [0; 3];
         stream.read_exact(&mut buf)?;
 
@@ -32,8 +42,24 @@ impl UdpHeader {
         Ok(Self { frag, address })
     }
 
-    #[cfg(feature = "tokio")]
-    pub async fn async_rebuild_from_stream<R: AsyncRead + Unpin>(r: &mut R) -> std::io::Result<Self> {
+    fn write_to_buf<B: bytes::BufMut>(&self, buf: &mut B) {
+        buf.put_bytes(0x00, 2);
+        buf.put_u8(self.frag);
+        self.address.write_to_buf(buf);
+    }
+
+    fn len(&self) -> usize {
+        3 + self.address.serialized_len()
+    }
+}
+
+#[cfg(feature = "tokio")]
+#[async_trait]
+impl AsyncStreamOperation for UdpHeader {
+    async fn retrieve_from_async_stream<R>(r: &mut R) -> std::io::Result<Self>
+    where
+        R: AsyncRead + Unpin + Send,
+    {
         let mut buf = [0; 3];
         r.read_exact(&mut buf).await?;
 
@@ -43,30 +69,9 @@ impl UdpHeader {
         Ok(Self { frag, address })
     }
 
-    pub fn write_to_stream<W: std::io::Write>(&self, w: &mut W) -> std::io::Result<()> {
-        let mut buf = Vec::with_capacity(self.serialized_len());
-        self.write_to_buf(&mut buf);
-        w.write_all(&buf)
-    }
-
-    #[cfg(feature = "tokio")]
-    pub async fn async_write_to_stream<W: AsyncWrite + Unpin>(&self, w: &mut W) -> std::io::Result<()> {
-        let mut buf = bytes::BytesMut::with_capacity(self.serialized_len());
+    async fn write_to_async_stream<W: AsyncWrite + Unpin + Send>(&self, w: &mut W) -> std::io::Result<()> {
+        let mut buf = bytes::BytesMut::with_capacity(self.len());
         self.write_to_buf(&mut buf);
         w.write_all(&buf).await
-    }
-
-    pub fn write_to_buf<B: bytes::BufMut>(&self, buf: &mut B) {
-        buf.put_bytes(0x00, 2);
-        buf.put_u8(self.frag);
-        self.address.write_to_buf(buf);
-    }
-
-    pub fn serialized_len(&self) -> usize {
-        3 + self.address.serialized_len()
-    }
-
-    pub const fn max_serialized_len() -> usize {
-        3 + Address::max_serialized_len()
     }
 }
