@@ -4,7 +4,7 @@ use crate::protocol::StreamOperation;
 #[cfg(feature = "tokio")]
 use async_trait::async_trait;
 #[cfg(feature = "tokio")]
-use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
+use tokio::io::{AsyncRead, AsyncReadExt};
 
 #[repr(u8)]
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
@@ -104,15 +104,5 @@ impl AsyncStreamOperation for Response {
 
         let status = Status::try_from(r.read_u8().await?)?;
         Ok(Self { status })
-    }
-
-    async fn write_to_async_stream<W>(&self, w: &mut W) -> std::io::Result<()>
-    where
-        W: AsyncWrite + Unpin + Send,
-    {
-        use bytes::BytesMut;
-        let mut buf = BytesMut::with_capacity(self.len());
-        self.write_to_buf(&mut buf);
-        w.write_all(&buf).await
     }
 }

@@ -4,7 +4,7 @@ use crate::protocol::{AuthMethod, StreamOperation, SOCKS_VERSION_V5};
 #[cfg(feature = "tokio")]
 use async_trait::async_trait;
 #[cfg(feature = "tokio")]
-use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
+use tokio::io::{AsyncRead, AsyncReadExt};
 
 /// SOCKS5 handshake request
 ///
@@ -87,14 +87,5 @@ impl AsyncStreamOperation for Request {
         let methods = methods.into_iter().map(AuthMethod::from).collect();
 
         Ok(Self { methods })
-    }
-
-    async fn write_to_async_stream<W>(&self, w: &mut W) -> std::io::Result<()>
-    where
-        W: AsyncWrite + Unpin + Send,
-    {
-        let mut buf = bytes::BytesMut::with_capacity(self.len());
-        self.write_to_buf(&mut buf);
-        w.write_all(&buf).await
     }
 }

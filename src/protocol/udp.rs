@@ -4,7 +4,7 @@ use crate::protocol::{Address, StreamOperation};
 #[cfg(feature = "tokio")]
 use async_trait::async_trait;
 #[cfg(feature = "tokio")]
-use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
+use tokio::io::{AsyncRead, AsyncReadExt};
 
 /// SOCKS5 UDP packet header
 ///
@@ -67,11 +67,5 @@ impl AsyncStreamOperation for UdpHeader {
 
         let address = Address::retrieve_from_async_stream(r).await?;
         Ok(Self { frag, address })
-    }
-
-    async fn write_to_async_stream<W: AsyncWrite + Unpin + Send>(&self, w: &mut W) -> std::io::Result<()> {
-        let mut buf = bytes::BytesMut::with_capacity(self.len());
-        self.write_to_buf(&mut buf);
-        w.write_all(&buf).await
     }
 }

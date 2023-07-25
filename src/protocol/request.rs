@@ -4,7 +4,7 @@ use crate::protocol::{Address, Command, StreamOperation, SOCKS_VERSION_V5};
 #[cfg(feature = "tokio")]
 use async_trait::async_trait;
 #[cfg(feature = "tokio")]
-use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
+use tokio::io::{AsyncRead, AsyncReadExt};
 
 /// SOCKS5 request
 ///
@@ -80,14 +80,5 @@ impl AsyncStreamOperation for Request {
         let address = Address::retrieve_from_async_stream(r).await?;
 
         Ok(Self { command, address })
-    }
-
-    async fn write_to_async_stream<W>(&self, w: &mut W) -> std::io::Result<()>
-    where
-        W: AsyncWrite + Unpin + Send,
-    {
-        let mut buf = bytes::BytesMut::with_capacity(self.len());
-        self.write_to_buf(&mut buf);
-        w.write_all(&buf).await
     }
 }

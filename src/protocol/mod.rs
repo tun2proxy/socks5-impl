@@ -22,7 +22,7 @@ pub use self::{
 #[cfg(feature = "tokio")]
 use async_trait::async_trait;
 #[cfg(feature = "tokio")]
-use tokio::io::{AsyncRead, AsyncWrite};
+use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
 
 pub const SOCKS_VERSION_V5: u8 = 0x05;
 pub const SOCKS_VERSION_V4: u8 = 0x04;
@@ -42,11 +42,15 @@ pub trait StreamOperation {
     fn write_to_buf<B: bytes::BufMut>(&self, buf: &mut B);
 
     fn len(&self) -> usize;
+
+    fn is_empty(&self) -> bool {
+        self.len() != 0
+    }
 }
 
 #[cfg(feature = "tokio")]
 #[async_trait]
-pub trait AsyncStreamOperation {
+pub trait AsyncStreamOperation: StreamOperation {
     async fn retrieve_from_async_stream<R>(r: &mut R) -> std::io::Result<Self>
     where
         R: AsyncRead + Unpin + Send,
@@ -54,5 +58,10 @@ pub trait AsyncStreamOperation {
 
     async fn write_to_async_stream<W>(&self, w: &mut W) -> std::io::Result<()>
     where
-        W: AsyncWrite + Unpin + Send;
+        W: AsyncWrite + Unpin + Send,
+    {
+        let mut buf = bytes::BytesMut::with_capacity(self.len());
+        self.write_to_buf(&mut buf);
+        w.write_all(&buf).await
+    }
 }
