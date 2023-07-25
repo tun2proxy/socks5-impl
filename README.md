@@ -35,7 +35,7 @@ fn main() -> socks5_impl::Result<()> {
     let listener = std::net::TcpListener::bind("127.0.0.1:5000")?;
     let (mut stream, _) = listener.accept()?;
 
-    let request = handshake::Request::rebuild_from_stream(&mut stream)?;
+    let request = handshake::Request::retrieve_from_stream(&mut stream)?;
 
     if request.evaluate_method(AuthMethod::NoAuth) {
         let response = handshake::Response::new(AuthMethod::NoAuth);

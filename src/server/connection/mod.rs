@@ -104,15 +104,15 @@ impl<O: 'static> IncomingConnection<O> {
     ///
     /// Note that this method will not implicitly close the connection even if the handshake failed.
     pub async fn authenticate(mut self) -> std::io::Result<(Authenticated, O)> {
-        let request = handshake::Request::async_rebuild_from_stream(&mut self.stream).await?;
+        let request = handshake::Request::retrieve_from_async_stream(&mut self.stream).await?;
         if let Some(method) = self.evaluate_request(&request) {
             let response = handshake::Response::new(method);
-            response.async_write_to_stream(&mut self.stream).await?;
+            response.write_to_async_stream(&mut self.stream).await?;
             let output = self.auth.execute(&mut self.stream).await;
             Ok((Authenticated::new(self.stream), output))
         } else {
             let response = handshake::Response::new(AuthMethod::NoAcceptableMethods);
-            response.async_write_to_stream(&mut self.stream).await?;
+            response.write_to_async_stream(&mut self.stream).await?;
             let err = "No available handshake method provided by client";
             Err(std::io::Error::new(std::io::ErrorKind::Unsupported, err))
         }
