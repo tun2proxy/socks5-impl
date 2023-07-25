@@ -1,4 +1,4 @@
-use crate::protocol::{Address, Reply, Response};
+use crate::protocol::{Address, AsyncStreamOperation, Reply, Response};
 use std::{
     io::IoSlice,
     net::SocketAddr,
@@ -61,7 +61,7 @@ impl Connect<NeedReply> {
     #[inline]
     pub async fn reply(mut self, reply: Reply, addr: Address) -> std::io::Result<Connect<Ready>> {
         let resp = Response::new(reply, addr);
-        resp.async_write_to_stream(&mut self.stream).await?;
+        resp.write_to_async_stream(&mut self.stream).await?;
         Ok(Connect::<Ready>::new(self.stream))
     }
 }

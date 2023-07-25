@@ -1,4 +1,4 @@
-use crate::protocol::{Address, Reply, Response, UdpHeader};
+use crate::protocol::{Address, AsyncStreamOperation, Reply, Response, UdpHeader};
 use bytes::{Bytes, BytesMut};
 use std::{
     net::SocketAddr,
@@ -33,7 +33,7 @@ impl<S: Default> UdpAssociate<S> {
     /// If encountered an error while writing the reply, the error alongside the original `TcpStream` is returned.
     pub async fn reply(mut self, reply: Reply, addr: Address) -> std::io::Result<UdpAssociate<Ready>> {
         let resp = Response::new(reply, addr);
-        resp.async_write_to_stream(&mut self.stream).await?;
+        resp.write_to_async_stream(&mut self.stream).await?;
         Ok(UdpAssociate::<Ready>::new(self.stream))
     }
 

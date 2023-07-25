@@ -1,4 +1,4 @@
-use socks5_impl::protocol::{handshake, Address, AuthMethod, Reply, Request, Response};
+use socks5_impl::protocol::{handshake, Address, AsyncStreamOperation, AuthMethod, Reply, Request, Response};
 use std::io;
 use tokio::{io::AsyncWriteExt, net::TcpListener};
 
@@ -20,11 +20,11 @@ async fn main() -> io::Result<()> {
         return Err(io::Error::new(io::ErrorKind::Unsupported, err));
     }
 
-    let _req = match Request::async_rebuild_from_stream(&mut stream).await {
+    let _req = match Request::retrieve_from_async_stream(&mut stream).await {
         Ok(req) => req,
         Err(err) => {
             let resp = Response::new(Reply::GeneralFailure, Address::unspecified());
-            resp.async_write_to_stream(&mut stream).await?;
+            resp.write_to_async_stream(&mut stream).await?;
             let _ = stream.shutdown().await;
             return Err(err);
         }
