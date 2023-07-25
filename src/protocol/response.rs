@@ -42,7 +42,7 @@ impl StreamOperation for Response {
         stream.read_exact(&mut buf)?;
 
         let reply = Reply::try_from(buf[0])?;
-        let address = Address::rebuild_from_stream(stream)?;
+        let address = Address::retrieve_from_stream(stream)?;
 
         Ok(Self { reply, address })
     }
@@ -55,7 +55,7 @@ impl StreamOperation for Response {
     }
 
     fn len(&self) -> usize {
-        3 + self.address.serialized_len()
+        3 + self.address.len()
     }
 }
 
@@ -77,7 +77,7 @@ impl AsyncStreamOperation for Response {
         r.read_exact(&mut buf).await?;
 
         let reply = Reply::try_from(buf[0])?;
-        let address = Address::async_rebuild_from_stream(r).await?;
+        let address = Address::retrieve_from_async_stream(r).await?;
 
         Ok(Self { reply, address })
     }

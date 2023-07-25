@@ -38,7 +38,7 @@ impl StreamOperation for UdpHeader {
 
         let frag = buf[2];
 
-        let address = Address::rebuild_from_stream(stream)?;
+        let address = Address::retrieve_from_stream(stream)?;
         Ok(Self { frag, address })
     }
 
@@ -49,7 +49,7 @@ impl StreamOperation for UdpHeader {
     }
 
     fn len(&self) -> usize {
-        3 + self.address.serialized_len()
+        3 + self.address.len()
     }
 }
 
@@ -65,7 +65,7 @@ impl AsyncStreamOperation for UdpHeader {
 
         let frag = buf[2];
 
-        let address = Address::async_rebuild_from_stream(r).await?;
+        let address = Address::retrieve_from_async_stream(r).await?;
         Ok(Self { frag, address })
     }
 
