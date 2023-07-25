@@ -1,4 +1,4 @@
-use crate::protocol::{handshake::password_method, AuthMethod, UserKey};
+use crate::protocol::{handshake::password_method, AsyncStreamOperation, AuthMethod, UserKey};
 use as_any::AsAny;
 use async_trait::async_trait;
 use std::sync::Arc;
@@ -79,11 +79,11 @@ impl AuthExecutor for UserKeyAuth {
 
     async fn execute(&self, stream: &mut TcpStream) -> Self::Output {
         use password_method::{Request, Response, Status::*};
-        let req = Request::async_rebuild_from_stream(stream).await?;
+        let req = Request::retrieve_from_async_stream(stream).await?;
 
         let is_equal = req.user_key == self.user_key;
         let resp = Response::new(if is_equal { Succeeded } else { Failed });
-        resp.async_write_to_stream(stream).await?;
+        resp.write_to_async_stream(stream).await?;
         if is_equal {
             Ok(true)
         } else {
