@@ -42,6 +42,15 @@ impl From<AddressType> for u8 {
     }
 }
 
+/// SOCKS5 Adderss Format
+///
+/// ```plain
+/// +------+----------+----------+
+/// | ATYP | DST.ADDR | DST.PORT |
+/// +------+----------+----------+
+/// |  1   | Variable |    2     |
+/// +------+----------+----------+
+/// ```
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum Address {
     SocketAddress(SocketAddr),
