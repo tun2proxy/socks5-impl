@@ -1,6 +1,6 @@
 #[cfg(feature = "tokio")]
 use crate::protocol::AsyncStreamOperation;
-use crate::protocol::{AuthMethod, StreamOperation, SOCKS_VERSION_V5};
+use crate::protocol::{AuthMethod, StreamOperation, Version};
 #[cfg(feature = "tokio")]
 use async_trait::async_trait;
 #[cfg(feature = "tokio")]
@@ -30,10 +30,10 @@ impl StreamOperation for Response {
     fn retrieve_from_stream<R: std::io::Read>(r: &mut R) -> std::io::Result<Self> {
         let mut ver = [0; 1];
         r.read_exact(&mut ver)?;
-        let ver = ver[0];
+        let ver = Version::try_from(ver[0])?;
 
-        if ver != SOCKS_VERSION_V5 {
-            let err = format!("Unsupported SOCKS version {0:#x}", ver);
+        if ver != Version::V5 {
+            let err = format!("Unsupported SOCKS version {0:#x}", u8::from(ver));
             return Err(std::io::Error::new(std::io::ErrorKind::Unsupported, err));
         }
 
@@ -45,7 +45,7 @@ impl StreamOperation for Response {
     }
 
     fn write_to_buf<B: bytes::BufMut>(&self, buf: &mut B) {
-        buf.put_u8(SOCKS_VERSION_V5);
+        buf.put_u8(Version::V5.into());
         buf.put_u8(u8::from(self.method));
     }
 
@@ -61,10 +61,10 @@ impl AsyncStreamOperation for Response {
     where
         R: AsyncRead + Unpin + Send,
     {
-        let ver = r.read_u8().await?;
+        let ver = Version::try_from(r.read_u8().await?)?;
 
-        if ver != SOCKS_VERSION_V5 {
-            let err = format!("Unsupported SOCKS version {0:#x}", ver);
+        if ver != Version::V5 {
+            let err = format!("Unsupported SOCKS version {0:#x}", u8::from(ver));
             return Err(std::io::Error::new(std::io::ErrorKind::Unsupported, err));
         }
 

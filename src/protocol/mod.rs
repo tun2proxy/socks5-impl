@@ -24,8 +24,38 @@ use async_trait::async_trait;
 #[cfg(feature = "tokio")]
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
 
-pub const SOCKS_VERSION_V5: u8 = 0x05;
-pub const SOCKS_VERSION_V4: u8 = 0x04;
+/// SOCKS protocol version, either 4 or 5
+#[repr(u8)]
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
+pub enum Version {
+    V4 = 4,
+    V5 = 5,
+}
+
+impl TryFrom<u8> for Version {
+    type Error = std::io::Error;
+
+    fn try_from(value: u8) -> std::io::Result<Self> {
+        match value {
+            4 => Ok(Version::V4),
+            5 => Ok(Version::V5),
+            _ => Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "invalid version")),
+        }
+    }
+}
+
+impl From<Version> for u8 {
+    fn from(v: Version) -> Self {
+        v as u8
+    }
+}
+
+impl std::fmt::Display for Version {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let v: u8 = (*self).into();
+        write!(f, "{}", v)
+    }
+}
 
 pub trait StreamOperation {
     fn retrieve_from_stream<R>(stream: &mut R) -> std::io::Result<Self>
