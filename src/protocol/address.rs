@@ -6,7 +6,7 @@ use async_trait::async_trait;
 use bytes::BufMut;
 use std::{
     io::Cursor,
-    net::{Ipv4Addr, Ipv6Addr, SocketAddr, ToSocketAddrs},
+    net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, ToSocketAddrs},
 };
 #[cfg(feature = "tokio")]
 use tokio::io::{AsyncRead, AsyncReadExt};
@@ -249,6 +249,14 @@ impl TryFrom<Address> for SocketAddr {
     }
 }
 
+impl TryFrom<&Address> for SocketAddr {
+    type Error = std::io::Error;
+
+    fn try_from(address: &Address) -> std::result::Result<Self, Self::Error> {
+        TryFrom::<Address>::try_from(address.clone())
+    }
+}
+
 impl From<Address> for Vec<u8> {
     fn from(addr: Address) -> Self {
         let mut buf = Vec::with_capacity(addr.len());
@@ -295,6 +303,12 @@ impl From<(Ipv4Addr, u16)> for Address {
 
 impl From<(Ipv6Addr, u16)> for Address {
     fn from((addr, port): (Ipv6Addr, u16)) -> Self {
+        Address::SocketAddress(SocketAddr::from((addr, port)))
+    }
+}
+
+impl From<(IpAddr, u16)> for Address {
+    fn from((addr, port): (IpAddr, u16)) -> Self {
         Address::SocketAddress(SocketAddr::from((addr, port)))
     }
 }
