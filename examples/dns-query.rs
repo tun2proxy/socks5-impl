@@ -1,17 +1,12 @@
+mod dns;
+
 use socks5_impl::{client, protocol::UserKey, Result};
-use std::{
-    net::{IpAddr, SocketAddr},
-    str::FromStr,
-    time::Duration,
-};
+use std::{net::SocketAddr, time::Duration};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::TcpStream,
 };
-use trust_dns_proto::{
-    op::{header::MessageType, op_code::OpCode, query::Query, Message, ResponseCode::NoError},
-    rr::{record_type::RecordType, Name, RData},
-};
+use trust_dns_proto::rr::record_type::RecordType;
 
 /// DNS query through socks5 proxy.
 #[derive(clap::Parser, Debug, Clone, PartialEq, Eq)]
@@ -66,19 +61,19 @@ async fn main() -> Result<()> {
 
     let is_ipv4 = opt.remote_dns_server.is_ipv4();
     let query_type = if is_ipv4 { RecordType::A } else { RecordType::AAAA };
-    let msg_buf = build_dns_query(&opt.domain, query_type, opt.tcp)?;
+    let msg_buf = dns::build_dns_query(&opt.domain, query_type, opt.tcp)?;
 
-    let message = parse_data_to_dns_message(&msg_buf, opt.tcp)?;
-    let domain = extract_domain_from_dns_message(&message)?.trim_end_matches('.').to_string();
+    let message = dns::parse_data_to_dns_message(&msg_buf, opt.tcp)?;
+    let domain = dns::extract_domain_from_dns_message(&message)?.trim_end_matches('.').to_string();
     assert_eq!(&domain, &opt.domain);
 
     let buf = dns_query_from_server(&opt, &msg_buf).await?;
 
-    let message = parse_data_to_dns_message(&buf, opt.tcp)?;
-    let domain = extract_domain_from_dns_message(&message)?.trim_end_matches('.').to_string();
+    let message = dns::parse_data_to_dns_message(&buf, opt.tcp)?;
+    let domain = dns::extract_domain_from_dns_message(&message)?.trim_end_matches('.').to_string();
     assert_eq!(&domain, &opt.domain);
 
-    let addr = extract_ipaddr_from_dns_message(&message)?;
+    let addr = dns::extract_ipaddr_from_dns_message(&message)?;
     println!("{}", addr);
 
     Ok(())
@@ -136,68 +131,4 @@ async fn dns_query_from_server(opt: &CmdOpt, msg_buf: &[u8]) -> Result<Vec<u8>> 
         }
     };
     Ok(buf)
-}
-
-fn build_dns_query(domain: &str, query_type: RecordType, used_by_tcp: bool) -> Result<Vec<u8>> {
-    use rand::{rngs::StdRng, Rng, SeedableRng};
-    let name = Name::from_str(domain).map_err(|e| e.to_string())?;
-    let query = Query::query(name, query_type);
-    let mut msg = Message::new();
-    msg.add_query(query)
-        .set_id(StdRng::from_entropy().gen())
-        .set_op_code(OpCode::Query)
-        .set_message_type(MessageType::Query)
-        .set_recursion_desired(true);
-    let mut msg_buf = msg.to_vec().map_err(|e| e.to_string())?;
-    if used_by_tcp {
-        let mut buf = (msg_buf.len() as u16).to_be_bytes().to_vec();
-        buf.append(&mut msg_buf);
-        Ok(buf)
-    } else {
-        Ok(msg_buf)
-    }
-}
-
-fn extract_ipaddr_from_dns_message(message: &Message) -> Result<IpAddr, String> {
-    if message.response_code() != NoError {
-        return Err(format!("{:?}", message.response_code()));
-    }
-    let mut cname = None;
-    for answer in message.answers() {
-        match answer.data().ok_or("DNS response not contains answer data")? {
-            RData::A(addr) => {
-                return Ok(IpAddr::V4(*addr));
-            }
-            RData::AAAA(addr) => {
-                return Ok(IpAddr::V6(*addr));
-            }
-            RData::CNAME(name) => {
-                cname = Some(name.to_utf8());
-            }
-            _ => {}
-        }
-    }
-    if let Some(cname) = cname {
-        return Err(cname);
-    }
-    Err(format!("{:?}", message.answers()))
-}
-
-fn extract_domain_from_dns_message(message: &Message) -> Result<String> {
-    let query = message.queries().get(0).ok_or("DnsRequest no query body")?;
-    let name = query.name().to_string();
-    Ok(name)
-}
-
-fn parse_data_to_dns_message(data: &[u8], used_by_tcp: bool) -> Result<Message, String> {
-    if used_by_tcp {
-        if data.len() < 2 {
-            return Err("invalid dns data".into());
-        }
-        let len = u16::from_be_bytes([data[0], data[1]]) as usize;
-        let data = data.get(2..len + 2).ok_or("invalid dns data")?;
-        return parse_data_to_dns_message(data, false);
-    }
-    let message = Message::from_vec(data).map_err(|e| e.to_string())?;
-    Ok(message)
 }

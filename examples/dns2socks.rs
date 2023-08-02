@@ -1,22 +1,17 @@
+mod dns;
+
 use moka::future::Cache;
 use socks5_impl::{
     client,
     protocol::{Address, UserKey},
     Error, Result,
 };
-use std::{
-    net::{IpAddr, SocketAddr},
-    sync::Arc,
-    time::Duration,
-};
+use std::{net::SocketAddr, sync::Arc, time::Duration};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt, BufStream},
     net::{TcpListener, TcpStream, ToSocketAddrs, UdpSocket},
 };
-use trust_dns_proto::{
-    op::{Message, Query, ResponseCode::NoError},
-    rr::RData,
-};
+use trust_dns_proto::op::{Message, Query};
 
 const MAX_BUFFER_SIZE: usize = 4096;
 
@@ -135,8 +130,8 @@ async fn udp_incoming_handler(
     auth: Option<UserKey>,
     timeout: Duration,
 ) -> Result<()> {
-    let message = parse_data_to_dns_message(&buf, false)?;
-    let domain = extract_domain_from_dns_message(&message)?;
+    let message = dns::parse_data_to_dns_message(&buf, false)?;
+    let domain = dns::extract_domain_from_dns_message(&message)?;
 
     if opt.cache_records {
         if let Some(cached_message) = dns_cache_get_message(&cache, &message) {
@@ -164,7 +159,7 @@ async fn udp_incoming_handler(
             .await
             .map_err(|e| format!("querying \"{domain}\" {e}"))?
     };
-    let message = parse_data_to_dns_message(&data, opt.force_tcp)?;
+    let message = dns::parse_data_to_dns_message(&data, opt.force_tcp)?;
     let msg_buf = message.to_vec().map_err(|e| e.to_string())?;
 
     listener.send_to(&msg_buf, &src).await?;
@@ -203,8 +198,8 @@ async fn handle_tcp_incoming(
     let mut buf = [0u8; MAX_BUFFER_SIZE];
     let n = incoming.read(&mut buf).await?;
 
-    let message = parse_data_to_dns_message(&buf[..n], true)?;
-    let domain = extract_domain_from_dns_message(&message)?;
+    let message = dns::parse_data_to_dns_message(&buf[..n], true)?;
+    let domain = dns::extract_domain_from_dns_message(&message)?;
 
     if opt.cache_records {
         if let Some(cached_message) = dns_cache_get_message(&cache, &message) {
@@ -223,7 +218,7 @@ async fn handle_tcp_incoming(
 
     incoming.write_all(&buf[..n]).await?;
 
-    let message = parse_data_to_dns_message(&buf[..n], true)?;
+    let message = dns::parse_data_to_dns_message(&buf[..n], true)?;
     log_dns_message("DNS query via TCP", &domain, &message);
 
     if opt.cache_records {
@@ -257,57 +252,13 @@ where
 }
 
 fn log_dns_message(prefix: &str, domain: &str, message: &Message) {
-    let ipaddr = match extract_ipaddr_from_dns_message(message) {
+    let ipaddr = match dns::extract_ipaddr_from_dns_message(message) {
         Ok(ipaddr) => {
             format!("{:?}", ipaddr)
         }
         Err(e) => e,
     };
     log::trace!("{} {:?} <==> {:?}", prefix, domain, ipaddr);
-}
-
-fn extract_ipaddr_from_dns_message(message: &Message) -> Result<IpAddr, String> {
-    if message.response_code() != NoError {
-        return Err(format!("{:?}", message.response_code()));
-    }
-    let mut cname = None;
-    for answer in message.answers() {
-        match answer.data().ok_or("DNS response not contains answer data")? {
-            RData::A(addr) => {
-                return Ok(IpAddr::V4(*addr));
-            }
-            RData::AAAA(addr) => {
-                return Ok(IpAddr::V6(*addr));
-            }
-            RData::CNAME(name) => {
-                cname = Some(name.to_utf8());
-            }
-            _ => {}
-        }
-    }
-    if let Some(cname) = cname {
-        return Err(cname);
-    }
-    Err(format!("{:?}", message.answers()))
-}
-
-fn extract_domain_from_dns_message(message: &Message) -> Result<String> {
-    let query = message.queries().get(0).ok_or("DNS request not contains query body")?;
-    let name = query.name().to_string();
-    Ok(name)
-}
-
-fn parse_data_to_dns_message(data: &[u8], used_by_tcp: bool) -> Result<Message, String> {
-    if used_by_tcp {
-        if data.len() < 2 {
-            return Err("Invalid DNS data".into());
-        }
-        let len = u16::from_be_bytes([data[0], data[1]]) as usize;
-        let data = data.get(2..len + 2).ok_or("Invalid DNS data")?;
-        return parse_data_to_dns_message(data, false);
-    }
-    let message = Message::from_vec(data).map_err(|e| e.to_string())?;
-    Ok(message)
 }
 
 pub(crate) fn create_dns_cache() -> Cache<Vec<Query>, Message> {
