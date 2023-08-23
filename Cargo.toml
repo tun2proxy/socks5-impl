@@ -1,6 +1,6 @@
 [package]
 name = "socks5-impl"
-version = "0.5.2"
+version = "0.5.3"
 authors = ["ssrlive <ssrlivebox@gmail.com>"]
 description = "Fundamental abstractions and async read / write functions for SOCKS5 protocol and Relatively low-level asynchronized SOCKS5 server implementation based on tokio"
 categories = ["network-programming", "asynchronous"]
@@ -20,7 +20,7 @@ async-trait = "0.1"
 byteorder = "1.4"
 bytes = "1.4"
 thiserror = "1.0"
-tokio = { version = "1.29", features = ["full"], optional = true }
+tokio = { version = "1.32", features = ["full"], optional = true }
 
 [dev-dependencies]
 clap = { version = "4.3", features = ["derive"] }
@@ -29,8 +29,8 @@ env_logger = "0.10"
 log = "0.4"
 moka = { version = "0.11", features = ["future"] }
 rand = "0.8"
-tokio = { version = "1.29", features = ["macros", "rt-multi-thread"] }
-trust-dns-proto = "0.22"
+tokio = { version = "1.32", features = ["macros", "rt-multi-thread"] }
+trust-dns-proto = "0.23"
 
 [[example]]
 name = "demo-client"
