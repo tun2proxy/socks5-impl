@@ -134,7 +134,7 @@ async fn udp_incoming_handler(
     let domain = dns::extract_domain_from_dns_message(&message)?;
 
     if opt.cache_records {
-        if let Some(cached_message) = dns_cache_get_message(&cache, &message) {
+        if let Some(cached_message) = dns_cache_get_message(&cache, &message).await {
             let data = cached_message.to_vec().map_err(|e| e.to_string())?;
             listener.send_to(&data, &src).await?;
             log_dns_message("DNS query via UDP cache hit", &domain, &cached_message);
@@ -202,7 +202,7 @@ async fn handle_tcp_incoming(
     let domain = dns::extract_domain_from_dns_message(&message)?;
 
     if opt.cache_records {
-        if let Some(cached_message) = dns_cache_get_message(&cache, &message) {
+        if let Some(cached_message) = dns_cache_get_message(&cache, &message).await {
             let data = cached_message.to_vec().map_err(|e| e.to_string())?;
             let len = u16::try_from(data.len()).map_err(|e| e.to_string())?.to_be_bytes().to_vec();
             let data = [len, data].concat();
@@ -268,8 +268,8 @@ pub(crate) fn create_dns_cache() -> Cache<Vec<Query>, Message> {
         .build()
 }
 
-pub(crate) fn dns_cache_get_message(cache: &Cache<Vec<Query>, Message>, message: &Message) -> Option<Message> {
-    if let Some(mut cached_message) = cache.get(&message.queries().to_vec()) {
+pub(crate) async fn dns_cache_get_message(cache: &Cache<Vec<Query>, Message>, message: &Message) -> Option<Message> {
+    if let Some(mut cached_message) = cache.get(&message.queries().to_vec()).await {
         cached_message.set_id(message.id());
         return Some(cached_message);
     }
