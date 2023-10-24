@@ -2,7 +2,7 @@
 
 use crate::{
     error::{Error, Result},
-    protocol::{Address, AddressType, AuthMethod, Command, Reply, StreamOperation, UserKey},
+    protocol::{Address, AddressType, AuthMethod, Command, Reply, StreamOperation, UserKey, Version},
 };
 use async_trait::async_trait;
 use std::{
@@ -19,11 +19,10 @@ use tokio::{
 #[async_trait]
 pub trait Socks5Reader: AsyncReadExt + Unpin {
     async fn read_version(&mut self) -> Result<()> {
-        let value = self.read_u8().await?;
+        let value = Version::try_from(self.read_u8().await?)?;
         match value {
-            0x04 => Err(Error::WrongVersion),
-            0x05 => Ok(()),
-            _ => Err(Error::InvalidVersion(value)),
+            Version::V4 => Err(Error::WrongVersion),
+            Version::V5 => Ok(()),
         }
     }
 
