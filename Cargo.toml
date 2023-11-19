@@ -1,6 +1,6 @@
 [package]
 name = "socks5-impl"
-version = "0.5.5"
+version = "0.5.6"
 authors = ["ssrlive <ssrlivebox@gmail.com>"]
 description = "Fundamental abstractions and async read / write functions for SOCKS5 protocol and Relatively low-level asynchronized SOCKS5 server implementation based on tokio"
 categories = ["network-programming", "asynchronous"]
@@ -53,8 +53,8 @@ path = "examples/dns2socks.rs"
 required-features = ["tokio"]
 
 [[example]]
-name = "simple-server"
-path = "examples/simple-server.rs"
+name = "s5-server"
+path = "examples/s5-server.rs"
 required-features = ["tokio"]
 
 [[example]]
