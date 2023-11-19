@@ -53,7 +53,7 @@ async fn main() -> Result<()> {
     opt.validate()?;
 
     let user_key = match (opt.username, opt.password) {
-        (Some(username), Some(password)) => Some(UserKey::new(username, password)),
+        (Some(username), password) => Some(UserKey::new(username, password.unwrap_or_default())),
         _ => None,
     };
     let timeout = Duration::from_secs(opt.timeout);

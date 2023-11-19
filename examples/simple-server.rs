@@ -29,9 +29,19 @@ pub struct CmdOpt {
     #[clap(short, long, value_name = "password")]
     password: Option<String>,
 
-    /// Verbose mode.
-    #[clap(short, long, default_value = "false")]
-    verbose: bool,
+    /// Verbosity level
+    #[arg(short, long, value_name = "level", value_enum, default_value = "info")]
+    verbosity: ArgVerbosity,
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, clap::ValueEnum)]
+enum ArgVerbosity {
+    Off,
+    Error,
+    Warn,
+    Info,
+    Debug,
+    Trace,
 }
 
 pub(crate) static MAX_UDP_RELAY_PACKET_SIZE: usize = 1500;
@@ -42,12 +52,12 @@ async fn main() -> Result<()> {
 
     dotenvy::dotenv().ok();
 
-    let level = if opt.verbose { "trace" } else { "info" };
-    let default = format!("off,{}={}", module_path!(), level);
+    let default = format!("{}={:?}", module_path!(), opt.verbosity);
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or(default)).init();
 
     match (opt.username, opt.password) {
-        (Some(username), Some(password)) => {
+        (Some(username), password) => {
+            let password = password.unwrap_or_default();
             let auth = Arc::new(auth::UserKeyAuth::new(&username, &password));
             main_loop(auth, opt.listen_addr).await?;
         }

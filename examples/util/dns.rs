@@ -69,5 +69,3 @@ pub fn parse_data_to_dns_message(data: &[u8], used_by_tcp: bool) -> Result<Messa
     let message = Message::from_vec(data).map_err(|e| e.to_string())?;
     Ok(message)
 }
-
-fn main() {}

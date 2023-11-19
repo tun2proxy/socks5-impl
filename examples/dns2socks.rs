@@ -1,4 +1,4 @@
-mod dns;
+mod util;
 
 use moka::future::Cache;
 use socks5_impl::{
@@ -12,6 +12,7 @@ use tokio::{
     net::{TcpListener, TcpStream, ToSocketAddrs, UdpSocket},
 };
 use trust_dns_proto::op::{Message, Query};
+use util::dns;
 
 const MAX_BUFFER_SIZE: usize = 4096;
 
@@ -47,13 +48,23 @@ pub struct CmdOpt {
     #[clap(short, long)]
     cache_records: bool,
 
-    /// Verbose mode.
-    #[clap(short, long)]
-    verbose: bool,
+    /// Verbosity level
+    #[arg(short, long, value_name = "level", value_enum, default_value = "info")]
+    verbosity: ArgVerbosity,
 
     /// Timeout for DNS query
     #[clap(short, long, value_name = "seconds", default_value = "5")]
     timeout: u64,
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, clap::ValueEnum)]
+enum ArgVerbosity {
+    Off,
+    Error,
+    Warn,
+    Info,
+    Debug,
+    Trace,
 }
 
 #[tokio::main]
@@ -62,12 +73,11 @@ async fn main() -> Result<()> {
 
     dotenvy::dotenv().ok();
 
-    let level = if opt.verbose { "trace" } else { "info" };
-    let default = format!("off,{}={}", module_path!(), level);
+    let default = format!("{}={:?}", module_path!(), opt.verbosity);
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or(default)).init();
 
     let user_key = match (&opt.username, &opt.password) {
-        (Some(username), Some(password)) => Some(UserKey::new(username, password)),
+        (Some(username), password) => Some(UserKey::new(username, password.clone().unwrap_or_default())),
         _ => None,
     };
 
