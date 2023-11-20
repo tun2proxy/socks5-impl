@@ -5,7 +5,7 @@ use socks5_impl::{
 };
 use std::{
     net::{SocketAddr, ToSocketAddrs},
-    sync::Arc,
+    sync::{atomic::AtomicBool, Arc},
 };
 use tokio::{
     io,
@@ -55,28 +55,52 @@ async fn main() -> Result<()> {
     let default = format!("{}={:?}", module_path!(), opt.verbosity);
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or(default)).init();
 
+    let exiting_flag = Arc::new(AtomicBool::new(false));
+    let exiting_flag_clone = exiting_flag.clone();
+
+    let local_addr = opt.listen_addr;
+
+    ctrlc2::set_async_handler(async move {
+        exiting_flag_clone.store(true, std::sync::atomic::Ordering::Relaxed);
+
+        let addr = if local_addr.is_ipv6() {
+            SocketAddr::from((std::net::Ipv6Addr::LOCALHOST, local_addr.port()))
+        } else {
+            SocketAddr::from((std::net::Ipv4Addr::LOCALHOST, local_addr.port()))
+        };
+        let _ = std::net::TcpStream::connect(addr);
+        log::info!("");
+        log::info!("Ctrl-C received, shutting down...");
+    })
+    .await;
+
     match (opt.username, opt.password) {
         (Some(username), password) => {
             let password = password.unwrap_or_default();
             let auth = Arc::new(auth::UserKeyAuth::new(&username, &password));
-            main_loop(auth, opt.listen_addr).await?;
+            main_loop(auth, opt.listen_addr, Some(exiting_flag)).await?;
         }
         _ => {
             let auth = Arc::new(auth::NoAuth);
-            main_loop(auth, opt.listen_addr).await?;
+            main_loop(auth, opt.listen_addr, Some(exiting_flag)).await?;
         }
     }
 
     Ok(())
 }
 
-async fn main_loop<S>(auth: auth::AuthAdaptor<S>, listen_addr: SocketAddr) -> Result<()>
+async fn main_loop<S>(auth: auth::AuthAdaptor<S>, listen_addr: SocketAddr, exiting_flag: Option<Arc<AtomicBool>>) -> Result<()>
 where
     S: Send + Sync + 'static,
 {
     let server = Server::bind(listen_addr, auth).await?;
 
     while let Ok((conn, _)) = server.accept().await {
+        if let Some(exiting_flag) = &exiting_flag {
+            if exiting_flag.load(std::sync::atomic::Ordering::Relaxed) {
+                break;
+            }
+        }
         tokio::spawn(async move {
             if let Err(err) = handle(conn).await {
                 log::error!("{err}");
