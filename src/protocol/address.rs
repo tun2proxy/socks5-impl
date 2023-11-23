@@ -156,10 +156,10 @@ impl StreamOperation for Address {
     }
 
     fn len(&self) -> usize {
-        1 + match self {
-            Address::SocketAddress(SocketAddr::V4(_)) => 4 + 2,
-            Address::SocketAddress(SocketAddr::V6(_)) => 16 + 2,
-            Address::DomainAddress(addr, _) => 1 + addr.len() + 2,
+        match self {
+            Address::SocketAddress(SocketAddr::V4(_)) => 1 + 4 + 2,
+            Address::SocketAddress(SocketAddr::V6(_)) => 1 + 16 + 2,
+            Address::DomainAddress(addr, _) => 1 + 1 + addr.len() + 2,
         }
     }
 }
