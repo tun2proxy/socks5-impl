@@ -1,6 +1,8 @@
 mod request;
 mod response;
 
+use serde::{Deserialize, Serialize};
+
 pub use self::{
     request::Request,
     response::{Response, Status},
@@ -9,7 +11,7 @@ pub use self::{
 pub const SUBNEGOTIATION_VERSION: u8 = 0x01;
 
 /// Required for a username + password authentication.
-#[derive(Default, Debug, Eq, PartialEq, Clone, Hash)]
+#[derive(Default, Debug, Eq, PartialEq, Clone, Hash, Deserialize, Serialize)]
 pub struct UserKey {
     pub username: String,
     pub password: String,
