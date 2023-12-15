@@ -59,6 +59,15 @@ impl From<&String> for Error {
     }
 }
 
+impl From<Error> for std::io::Error {
+    fn from(e: Error) -> Self {
+        match e {
+            Error::Io(e) => e,
+            _ => std::io::Error::new(std::io::ErrorKind::Other, e),
+        }
+    }
+}
+
 #[cfg(feature = "tokio")]
 impl From<tokio::time::error::Elapsed> for Error {
     fn from(e: tokio::time::error::Elapsed) -> Self {
