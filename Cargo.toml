@@ -1,6 +1,6 @@
 [package]
 name = "socks5-impl"
-version = "0.5.9"
+version = "0.5.10"
 authors = ["ssrlive <ssrlivebox@gmail.com>"]
 description = "Fundamental abstractions and async read / write functions for SOCKS5 protocol and Relatively low-level asynchronized SOCKS5 server implementation based on tokio"
 categories = ["network-programming", "asynchronous"]
@@ -24,7 +24,7 @@ thiserror = "1.0"
 tokio = { version = "1.36", features = ["full"], optional = true }
 
 [dev-dependencies]
-clap = { version = "4.4", features = ["derive"] }
+clap = { version = "4.5", features = ["derive"] }
 ctrlc2 = { version = "3.5", features = ["tokio", "termination"] }
 dotenvy = "0.15"
 env_logger = "0.11"

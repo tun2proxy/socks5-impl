@@ -17,6 +17,17 @@ pub struct UserKey {
     pub password: String,
 }
 
+impl std::fmt::Display for UserKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match (self.username.is_empty(), self.password.is_empty()) {
+            (true, true) => write!(f, ""),
+            (true, false) => write!(f, ":{}", self.password),
+            (false, true) => write!(f, "{}", self.username),
+            (false, false) => write!(f, "{}:{}", self.username, self.password),
+        }
+    }
+}
+
 impl UserKey {
     /// Constructs `UserKey` with the specified username and a password.
     pub fn new<U, P>(username: U, password: P) -> Self
