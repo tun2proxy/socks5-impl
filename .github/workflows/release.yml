@@ -60,11 +60,11 @@ jobs:
             cargo build --all-features --release --examples --target ${{ matrix.target }}
           fi
           if [[ "${{ matrix.host_os }}" == "windows-latest" ]]; then
-            powershell Compress-Archive -Path target/${{ matrix.target }}/release/examples/dns2socks.exe, target/${{ matrix.target }}/release/examples/s5-server.exe, target/${{ matrix.target }}/release/examples/udp-client.exe, target/${{ matrix.target }}/release/examples/dns-query.exe -DestinationPath release/socks5-utilities-${{ matrix.target }}.zip
+            powershell Compress-Archive -Path target/${{ matrix.target }}/release/examples/dns2socks.exe, target/${{ matrix.target }}/release/examples/s5-server.exe, target/${{ matrix.target }}/release/examples/udp-client.exe, target/${{ matrix.target }}/release/examples/dns-query.exe, target/${{ matrix.target }}/release/examples/echo-server.exe -DestinationPath release/socks5-utilities-${{ matrix.target }}.zip
           elif [[ "${{ matrix.host_os }}" == "macos-latest" ]]; then
-            zip -j release/socks5-utilities-${{ matrix.target }}.zip target/${{ matrix.target }}/release/examples/dns2socks target/${{ matrix.target }}/release/examples/s5-server target/${{ matrix.target }}/release/examples/udp-client target/${{ matrix.target }}/release/examples/dns-query
+            zip -j release/socks5-utilities-${{ matrix.target }}.zip target/${{ matrix.target }}/release/examples/dns2socks target/${{ matrix.target }}/release/examples/s5-server target/${{ matrix.target }}/release/examples/udp-client target/${{ matrix.target }}/release/examples/dns-query target/${{ matrix.target }}/release/examples/echo-server
           elif [[ "${{ matrix.host_os }}" == "ubuntu-latest" ]]; then
-            zip -j release/socks5-utilities-${{ matrix.target }}.zip target/${{ matrix.target }}/release/examples/dns2socks target/${{ matrix.target }}/release/examples/s5-server target/${{ matrix.target }}/release/examples/udp-client target/${{ matrix.target }}/release/examples/dns-query
+            zip -j release/socks5-utilities-${{ matrix.target }}.zip target/${{ matrix.target }}/release/examples/dns2socks target/${{ matrix.target }}/release/examples/s5-server target/${{ matrix.target }}/release/examples/udp-client target/${{ matrix.target }}/release/examples/dns-query target/${{ matrix.target }}/release/examples/echo-server
           fi
 
       - name: Upload
