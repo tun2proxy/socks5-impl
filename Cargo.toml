@@ -50,11 +50,6 @@ path = "examples/dns-query.rs"
 required-features = ["tokio"]
 
 [[example]]
-name = "dns2socks"
-path = "examples/dns2socks.rs"
-required-features = ["tokio"]
-
-[[example]]
 name = "s5-server"
 path = "examples/s5-server.rs"
 required-features = ["tokio"]
