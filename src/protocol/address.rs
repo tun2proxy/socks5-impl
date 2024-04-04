@@ -140,9 +140,7 @@ impl StreamOperation for Address {
             }
             Self::SocketAddress(SocketAddr::V6(addr)) => {
                 buf.put_u8(AddressType::IPv6.into());
-                for seg in addr.ip().segments() {
-                    buf.put_u16(seg);
-                }
+                buf.put_slice(&addr.ip().octets());
                 buf.put_u16(addr.port());
             }
             Self::DomainAddress(addr, port) => {
