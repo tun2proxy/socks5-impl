@@ -172,10 +172,12 @@ impl AsyncStreamOperation for Address {
         let atyp = stream.read_u8().await?;
         match AddressType::try_from(atyp)? {
             AddressType::IPv4 => {
-                let mut buf = [0; 6];
+                let mut addr_bytes = [0; 4];
+                stream.read_exact(&mut addr_bytes).await?;
+                let mut buf = [0; 2];
                 stream.read_exact(&mut buf).await?;
-                let addr = Ipv4Addr::new(buf[0], buf[1], buf[2], buf[3]);
-                let port = u16::from_be_bytes([buf[4], buf[5]]);
+                let addr = Ipv4Addr::from(addr_bytes);
+                let port = u16::from_be_bytes(buf);
                 Ok(Self::SocketAddress(SocketAddr::from((addr, port))))
             }
             AddressType::Domain => {
@@ -196,11 +198,11 @@ impl AsyncStreamOperation for Address {
                 Ok(Self::DomainAddress(addr, port))
             }
             AddressType::IPv6 => {
-                let mut buf = [0; 18];
-                stream.read_exact(&mut buf).await?;
-                let port = u16::from_be_bytes([buf[16], buf[17]]);
                 let mut addr_bytes = [0; 16];
-                addr_bytes.copy_from_slice(&buf[..16]);
+                stream.read_exact(&mut addr_bytes).await?;
+                let mut buf = [0; 2];
+                stream.read_exact(&mut buf).await?;
+                let port = u16::from_be_bytes(buf);
                 Ok(Self::SocketAddress(SocketAddr::from((Ipv6Addr::from(addr_bytes), port))))
             }
         }
@@ -345,4 +347,53 @@ impl TryFrom<&str> for Address {
             Ok(Address::DomainAddress(addr.to_owned(), port))
         }
     }
+}
+
+#[test]
+fn test_address() {
+    let addr = Address::from((Ipv4Addr::new(127, 0, 0, 1), 8080));
+    let mut buf = Vec::new();
+    addr.write_to_buf(&mut buf);
+    assert_eq!(buf, vec![0x01, 127, 0, 0, 1, 0x1f, 0x90]);
+    let addr2 = Address::retrieve_from_stream(&mut Cursor::new(&buf)).unwrap();
+    assert_eq!(addr, addr2);
+
+    let addr = Address::from((Ipv6Addr::new(0x45, 0xff89, 0, 0, 0, 0, 0, 1), 8080));
+    let mut buf = Vec::new();
+    addr.write_to_buf(&mut buf);
+    assert_eq!(buf, vec![0x04, 0, 0x45, 0xff, 0x89, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0x1f, 0x90]);
+    let addr2 = Address::retrieve_from_stream(&mut Cursor::new(&buf)).unwrap();
+    assert_eq!(addr, addr2);
+
+    let addr = Address::from(("sex.com".to_owned(), 8080));
+    let mut buf = Vec::new();
+    addr.write_to_buf(&mut buf);
+    assert_eq!(buf, vec![0x03, 0x07, b's', b'e', b'x', b'.', b'c', b'o', b'm', 0x1f, 0x90]);
+    let addr2 = Address::retrieve_from_stream(&mut Cursor::new(&buf)).unwrap();
+    assert_eq!(addr, addr2);
+}
+
+#[cfg(feature = "tokio")]
+#[tokio::test]
+async fn test_address_async() {
+    let addr = Address::from((Ipv4Addr::new(127, 0, 0, 1), 8080));
+    let mut buf = Vec::new();
+    addr.write_to_async_stream(&mut buf).await.unwrap();
+    assert_eq!(buf, vec![0x01, 127, 0, 0, 1, 0x1f, 0x90]);
+    let addr2 = Address::retrieve_from_async_stream(&mut Cursor::new(&buf)).await.unwrap();
+    assert_eq!(addr, addr2);
+
+    let addr = Address::from((Ipv6Addr::new(0x45, 0xff89, 0, 0, 0, 0, 0, 1), 8080));
+    let mut buf = Vec::new();
+    addr.write_to_async_stream(&mut buf).await.unwrap();
+    assert_eq!(buf, vec![0x04, 0, 0x45, 0xff, 0x89, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0x1f, 0x90]);
+    let addr2 = Address::retrieve_from_async_stream(&mut Cursor::new(&buf)).await.unwrap();
+    assert_eq!(addr, addr2);
+
+    let addr = Address::from(("sex.com".to_owned(), 8080));
+    let mut buf = Vec::new();
+    addr.write_to_async_stream(&mut buf).await.unwrap();
+    assert_eq!(buf, vec![0x03, 0x07, b's', b'e', b'x', b'.', b'c', b'o', b'm', 0x1f, 0x90]);
+    let addr2 = Address::retrieve_from_async_stream(&mut Cursor::new(&buf)).await.unwrap();
+    assert_eq!(addr, addr2);
 }
