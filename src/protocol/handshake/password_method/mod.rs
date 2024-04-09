@@ -19,11 +19,16 @@ pub struct UserKey {
 
 impl std::fmt::Display for UserKey {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        use percent_encoding::{percent_encode, NON_ALPHANUMERIC};
         match (self.username.is_empty(), self.password.is_empty()) {
             (true, true) => write!(f, ""),
-            (true, false) => write!(f, ":{}", self.password),
-            (false, true) => write!(f, "{}", self.username),
-            (false, false) => write!(f, "{}:{}", self.username, self.password),
+            (true, false) => write!(f, ":{}", percent_encode(self.password.as_bytes(), NON_ALPHANUMERIC)),
+            (false, true) => write!(f, "{}", percent_encode(self.username.as_bytes(), NON_ALPHANUMERIC)),
+            (false, false) => {
+                let username = percent_encode(self.username.as_bytes(), NON_ALPHANUMERIC).to_string();
+                let password = percent_encode(self.password.as_bytes(), NON_ALPHANUMERIC).to_string();
+                write!(f, "{}:{}", username, password)
+            }
         }
     }
 }
@@ -48,4 +53,16 @@ impl UserKey {
     pub fn password_arr(&self) -> Vec<u8> {
         self.password.as_bytes().to_vec()
     }
+}
+
+#[test]
+fn test_user_key() {
+    let user_key = UserKey::new("username", "pass@word");
+    assert_eq!(user_key.to_string(), "username:pass%40word");
+    let user_key = UserKey::new("username", "");
+    assert_eq!(user_key.to_string(), "username");
+    let user_key = UserKey::new("", "password");
+    assert_eq!(user_key.to_string(), ":password");
+    let user_key = UserKey::new("", "");
+    assert_eq!(user_key.to_string(), "");
 }

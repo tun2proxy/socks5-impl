@@ -1,6 +1,6 @@
 [package]
 name = "socks5-impl"
-version = "0.5.11"
+version = "0.5.12"
 authors = ["ssrlive <ssrlivebox@gmail.com>"]
 description = "Fundamental abstractions and async read / write functions for SOCKS5 protocol and Relatively low-level asynchronized SOCKS5 server implementation based on tokio"
 categories = ["network-programming", "asynchronous"]
@@ -19,6 +19,7 @@ as-any = "0.3"
 async-trait = "0.1"
 byteorder = "1.5"
 bytes = "1.5"
+percent-encoding = "2"
 serde = { version = "1.0", features = ["derive"] }
 thiserror = "1.0"
 tokio = { version = "1.36", features = ["full"], optional = true }
