@@ -1,5 +1,3 @@
-#![cfg(feature = "tokio")]
-
 use crate::{
     error::{Error, Result},
     protocol::{Address, AddressType, AuthMethod, Command, Reply, StreamOperation, UserKey, Version},

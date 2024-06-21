@@ -1,12 +1,12 @@
 mod util;
 
+use hickory_proto::rr::record_type::RecordType;
 use socks5_impl::{client, protocol::UserKey, Result};
 use std::{net::SocketAddr, time::Duration};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::TcpStream,
 };
-use trust_dns_proto::rr::record_type::RecordType;
 use util::dns;
 
 /// DNS query through socks5 proxy.

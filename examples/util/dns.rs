@@ -1,10 +1,10 @@
 #![allow(dead_code)]
 
-use std::{net::IpAddr, str::FromStr};
-use trust_dns_proto::{
+use hickory_proto::{
     op::{header::MessageType, op_code::OpCode, query::Query, Message, ResponseCode},
     rr::{record_type::RecordType, Name, RData},
 };
+use std::{net::IpAddr, str::FromStr};
 
 pub fn build_dns_query(domain: &str, query_type: RecordType, used_by_tcp: bool) -> Result<Vec<u8>, String> {
     use rand::{rngs::StdRng, Rng, SeedableRng};

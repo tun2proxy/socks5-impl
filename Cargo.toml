@@ -1,6 +1,6 @@
 [package]
 name = "socks5-impl"
-version = "0.5.12"
+version = "0.5.13"
 authors = ["ssrlive <ssrlivebox@gmail.com>"]
 description = "Fundamental abstractions and async read / write functions for SOCKS5 protocol and Relatively low-level asynchronized SOCKS5 server implementation based on tokio"
 categories = ["network-programming", "asynchronous"]
@@ -17,23 +17,23 @@ tokio = ["dep:tokio"]
 [dependencies]
 as-any = "0.3"
 async-trait = "0.1"
-byteorder = "1.5"
-bytes = "1.5"
+byteorder = "1"
+bytes = "1"
 percent-encoding = "2"
-serde = { version = "1.0", features = ["derive"] }
-thiserror = "1.0"
-tokio = { version = "1.36", features = ["full"], optional = true }
+serde = { version = "1", features = ["derive"] }
+thiserror = "1"
+tokio = { version = "1", features = ["full"], optional = true }
 
 [dev-dependencies]
-clap = { version = "4.5", features = ["derive"] }
-ctrlc2 = { version = "3.5", features = ["tokio", "termination"] }
+clap = { version = "4", features = ["derive"] }
+ctrlc2 = { version = "3", features = ["tokio", "termination"] }
 dotenvy = "0.15"
 env_logger = "0.11"
 log = "0.4"
 moka = { version = "0.12", features = ["future"] }
 rand = "0.8"
-tokio = { version = "1.36", features = ["macros", "rt-multi-thread"] }
-trust-dns-proto = "0.23"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+hickory-proto = "0.24"
 
 [[example]]
 name = "demo-client"
