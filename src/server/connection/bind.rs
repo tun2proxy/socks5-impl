@@ -16,10 +16,10 @@ use tokio::{
 
 /// Socks5 command type `Bind`
 ///
-/// By [`wait_request()`](https://docs.rs/socks5-impl/latest/socks5_impl/server/connection/struct.Authenticated.html#method.wait_request)
-/// on an [`Authenticated`](https://docs.rs/socks5-impl/latest/socks5_impl/server/connection/struct.Authenticated.html) from SOCKS5 client,
+/// By [`wait_request`](crate::server::connection::Authenticated::wait_request)
+/// on an [`Authenticated`](crate::server::connection::Authenticated) from SOCKS5 client,
 /// you may get a `Bind<NeedFirstReply>`. After replying the client 2 times
-/// using [`reply()`](https://docs.rs/socks5-impl/latest/socks5_impl/server/connection/struct.Bind.html#method.reply),
+/// using [`reply()`](crate::server::connection::Bind::reply),
 /// you will get a `Bind<Ready>`, which can be used as a regular async TCP stream.
 ///
 /// A `Bind<S>` can be converted to a regular tokio [`TcpStream`](https://docs.rs/tokio/latest/tokio/net/struct.TcpStream.html) by using the `From` trait.
@@ -79,8 +79,7 @@ impl Bind<NeedFirstReply> {
 
     /// Reads the linger duration for this socket by getting the `SO_LINGER` option.
     ///
-    /// For more information about this option, see
-    /// [set_linger](https://docs.rs/socks5-impl/latest/socks5_impl/server/connection/struct.Bind.html#method.set_linger).
+    /// For more information about this option, see [`set_linger`](crate::server::connection::Bind::set_linger).
     #[inline]
     pub fn linger(&self) -> std::io::Result<Option<Duration>> {
         self.stream.linger()
@@ -100,8 +99,7 @@ impl Bind<NeedFirstReply> {
 
     /// Gets the value of the `TCP_NODELAY` option on this socket.
     ///
-    /// For more information about this option, see
-    /// [set_nodelay](https://docs.rs/socks5-impl/latest/socks5_impl/server/connection/struct.Bind.html#method.set_nodelay).
+    /// For more information about this option, see [`set_nodelay`](crate::server::connection::Bind::set_nodelay).
     #[inline]
     pub fn nodelay(&self) -> std::io::Result<bool> {
         self.stream.nodelay()
@@ -118,8 +116,7 @@ impl Bind<NeedFirstReply> {
 
     /// Gets the value of the `IP_TTL` option for this socket.
     ///
-    /// For more information about this option, see
-    /// [set_ttl](https://docs.rs/socks5-impl/latest/socks5_impl/server/connection/struct.Bind.html#method.set_ttl).
+    /// For more information about this option, see [`set_ttl`](crate::server::connection::Bind::set_ttl).
     pub fn ttl(&self) -> std::io::Result<u32> {
         self.stream.ttl()
     }
@@ -174,8 +171,7 @@ impl Bind<NeedSecondReply> {
 
     /// Reads the linger duration for this socket by getting the `SO_LINGER` option.
     ///
-    /// For more information about this option, see
-    /// [set_linger](https://docs.rs/socks5-impl/latest/socks5_impl/server/connection/struct.Bind.html#method.set_linger).
+    /// For more information about this option, see [`set_linger`](crate::server::connection::Bind::set_linger).
     #[inline]
     pub fn linger(&self) -> std::io::Result<Option<Duration>> {
         self.stream.linger()
@@ -196,7 +192,7 @@ impl Bind<NeedSecondReply> {
     /// Gets the value of the `TCP_NODELAY` option on this socket.
     ///
     /// For more information about this option, see
-    /// [set_nodelay](https://docs.rs/socks5-impl/latest/socks5_impl/server/connection/struct.Bind.html#method.set_nodelay).
+    /// [`set_nodelay`](crate::server::connection::Bind::set_nodelay).
     #[inline]
     pub fn nodelay(&self) -> std::io::Result<bool> {
         self.stream.nodelay()
@@ -213,8 +209,7 @@ impl Bind<NeedSecondReply> {
 
     /// Gets the value of the `IP_TTL` option for this socket.
     ///
-    /// For more information about this option, see
-    /// [set_ttl](https://docs.rs/socks5-impl/latest/socks5_impl/server/connection/struct.Bind.html#method.set_ttl).
+    /// For more information about this option, see [`set_ttl`](crate::server::connection::Bind::set_ttl).
     pub fn ttl(&self) -> std::io::Result<u32> {
         self.stream.ttl()
     }

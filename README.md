@@ -22,7 +22,7 @@ This repo hosts at [socks5-impl](https://github.com/ssrlive/socks5-impl/tree/mas
 
 ## Usage
 
-The entry point of this crate is [`socks5_impl::server::Server`](https://docs.rs/socks5-impl/latest/socks5_impl/server/struct.Server.html).
+The entry point of this crate is [`socks5_impl::server::Server`](crate::server::Server).
 
 Check [examples](https://github.com/ssrlive/socks5-impl/tree/master/examples) for usage examples.
 

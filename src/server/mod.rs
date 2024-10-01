@@ -22,7 +22,7 @@ pub use crate::{
 /// The server can be constructed on a given socket address, or be created on an existing TcpListener.
 ///
 /// The authentication method can be configured with the
-/// [`AuthExecutor`](https://docs.rs/socks5-impl/latest/socks5_impl/server/auth/trait.AuthExecutor.html) trait.
+/// [`AuthExecutor`] trait.
 pub struct Server<O> {
     listener: TcpListener,
     auth: AuthAdaptor<O>,
@@ -49,9 +49,9 @@ impl<O: 'static> Server<O> {
         Ok(Self::new(listener, auth))
     }
 
-    /// Accept an [`IncomingConnection`](https://docs.rs/socks5-impl/latest/socks5_impl/server/connection/struct.IncomingConnection.html).
+    /// Accept an [`IncomingConnection`].
     /// The connection may not be a valid socks5 connection. You need to call
-    /// [`IncomingConnection::handshake()`](https://docs.rs/socks5-impl/latest/socks5_impl/server/connection/struct.IncomingConnection.html#method.handshake)
+    /// [`IncomingConnection::authenticate`](crate::server::connection::IncomingConnection::authenticate)
     /// to hand-shake it into a proper socks5 connection.
     #[inline]
     pub async fn accept(&self) -> std::io::Result<(IncomingConnection<O>, SocketAddr)> {
@@ -59,11 +59,11 @@ impl<O: 'static> Server<O> {
         Ok((IncomingConnection::new(stream, self.auth.clone()), addr))
     }
 
-    /// Polls to accept an [`IncomingConnection<O>`](https://docs.rs/socks5-impl/latest/socks5_impl/server/connection/struct.IncomingConnection.html).
+    /// Polls to accept an [`IncomingConnection<O>`](crate::server::connection::IncomingConnection).
     ///
     /// The connection is only a freshly created TCP connection and may not be a valid SOCKS5 connection.
     /// You should call
-    /// [`IncomingConnection::authenticate()`](https://docs.rs/socks5-impl/latest/socks5_impl/server/connection/struct.IncomingConnection.html#method.authenticate)
+    /// [`IncomingConnection::authenticate`](crate::server::connection::IncomingConnection::authenticate)
     /// to perform a SOCKS5 authentication handshake.
     ///
     /// If there is no connection to accept, Poll::Pending is returned and the current task will be notified by a waker.

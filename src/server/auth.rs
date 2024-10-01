@@ -6,7 +6,7 @@ use tokio::net::TcpStream;
 
 /// This trait is for defining the socks5 authentication method.
 ///
-/// Pre-defined authentication methods can be found in the [`auth`](https://docs.rs/socks5-impl/latest/socks5_impl/server/auth/index.html) module.
+/// Pre-defined authentication methods can be found in the [`auth`](crate::server::auth) module.
 ///
 /// You can create your own authentication method by implementing this trait. Since GAT is not stabled yet,
 /// [async_trait](https://docs.rs/async-trait/latest/async_trait/index.html) needs to be used.

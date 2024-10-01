@@ -10,7 +10,7 @@ pub mod associate;
 pub mod bind;
 pub mod connect;
 
-/// An incoming connection. This may not be a valid socks5 connection. You need to call [`handshake()`](#method.handshake)
+/// An incoming connection. This may not be a valid socks5 connection. You need to call [`authenticate()`](#method.authenticate)
 /// to perform the socks5 handshake. It will be converted to a proper socks5 connection after the handshake succeeds.
 pub struct IncomingConnection<O> {
     stream: TcpStream,
@@ -43,8 +43,7 @@ impl<O: 'static> IncomingConnection<O> {
 
     /// Reads the linger duration for this socket by getting the `SO_LINGER` option.
     ///
-    /// For more information about this option, see
-    /// [set_linger](https://docs.rs/socks5-impl/latest/socks5_impl/server/connection/struct.IncomingConnection.html#method.set_linger).
+    /// For more information about this option, see [`set_linger`](crate::server::connection::IncomingConnection::set_linger).
     #[inline]
     pub fn linger(&self) -> std::io::Result<Option<Duration>> {
         self.stream.linger()
@@ -65,7 +64,7 @@ impl<O: 'static> IncomingConnection<O> {
     /// Gets the value of the `TCP_NODELAY` option on this socket.
     ///
     /// For more information about this option, see
-    /// [set_nodelay](https://docs.rs/socks5-impl/latest/socks5_impl/server/connection/struct.IncomingConnection.html#method.set_nodelay).
+    /// [`set_nodelay`](#method.set_nodelay).
     #[inline]
     pub fn nodelay(&self) -> std::io::Result<bool> {
         self.stream.nodelay()
@@ -83,7 +82,7 @@ impl<O: 'static> IncomingConnection<O> {
     /// Gets the value of the `IP_TTL` option for this socket.
     ///
     /// For more information about this option, see
-    /// [set_ttl](https://docs.rs/socks5-impl/latest/socks5_impl/server/connection/struct.IncomingConnection.html#method.set_ttl).
+    /// [`set_ttl`](#method.set_ttl).
     pub fn ttl(&self) -> std::io::Result<u32> {
         self.stream.ttl()
     }
@@ -96,10 +95,10 @@ impl<O: 'static> IncomingConnection<O> {
     }
 
     /// Perform a SOCKS5 authentication handshake using the given
-    /// [`AuthExecutor`](https://docs.rs/socks5-impl/latest/socks5_impl/server/auth/trait.AuthExecutor.html) adapter.
+    /// [`AuthExecutor`](crate::server::auth::AuthExecutor) adapter.
     ///
-    /// If the handshake succeeds, an [`Authenticated`](https://docs.rs/socks5-impl/latest/socks5_impl/server/connection/struct.Authenticated.html)
-    /// alongs with the output of the [`AuthExecutor`](https://docs.rs/socks5-impl/latest/socks5_impl/server/auth/trait.AuthExecutor.html) adapter is returned.
+    /// If the handshake succeeds, an [`Authenticated`]
+    /// alongs with the output of the [`AuthExecutor`](crate::server::auth::AuthExecutor) adapter is returned.
     /// Otherwise, the error and the original [`TcpStream`](https://docs.rs/tokio/latest/tokio/net/struct.TcpStream.html) is returned.
     ///
     /// Note that this method will not implicitly close the connection even if the handshake failed.
@@ -144,7 +143,7 @@ impl<O> From<IncomingConnection<O>> for TcpStream {
 /// A TCP stream that has been authenticated.
 ///
 /// To get the command from the SOCKS5 client, use
-/// [`wait_request`](https://docs.rs/socks5-impl/latest/socks5_impl/server/connection/struct.Authenticated.html#method.wait_request).
+/// [`wait_request`](crate::server::connection::Authenticated::wait_request).
 ///
 /// It can also be converted back into a raw [`tokio::TcpStream`](https://docs.rs/tokio/latest/tokio/net/struct.TcpStream.html) with `From` trait.
 pub struct Authenticated(TcpStream);
@@ -157,8 +156,7 @@ impl Authenticated {
 
     /// Waits the SOCKS5 client to send a request.
     ///
-    /// This method will return a [`Command`](https://docs.rs/socks5-impl/latest/socks5_impl/server/connection/enum.Command.html)
-    /// if the client sends a valid command.
+    /// This method will return a [`Command`] if the client sends a valid command.
     ///
     /// When encountering an error, the stream will be returned alongside the error.
     ///
@@ -197,7 +195,7 @@ impl Authenticated {
     /// Reads the linger duration for this socket by getting the `SO_LINGER` option.
     ///
     /// For more information about this option, see
-    /// [set_linger](https://docs.rs/socks5-impl/latest/socks5_impl/server/connection/struct.Authenticated.html#method.set_linger).
+    /// [`set_linger`](crate::server::connection::Authenticated::set_linger).
     #[inline]
     pub fn linger(&self) -> std::io::Result<Option<Duration>> {
         self.0.linger()
@@ -218,7 +216,7 @@ impl Authenticated {
     /// Gets the value of the `TCP_NODELAY` option on this socket.
     ///
     /// For more information about this option, see
-    /// [set_nodelay](https://docs.rs/socks5-impl/latest/socks5_impl/server/connection/struct.Authenticated.html#method.set_nodelay).
+    /// [`set_nodelay`](crate::server::connection::Authenticated::set_nodelay).
     #[inline]
     pub fn nodelay(&self) -> std::io::Result<bool> {
         self.0.nodelay()
@@ -236,7 +234,7 @@ impl Authenticated {
     /// Gets the value of the `IP_TTL` option for this socket.
     ///
     /// For more information about this option, see
-    /// [set_ttl](https://docs.rs/socks5-impl/latest/socks5_impl/server/connection/struct.Authenticated.html#method.set_ttl).
+    /// [`set_ttl`](crate::server::connection::Authenticated::set_ttl).
     pub fn ttl(&self) -> std::io::Result<u32> {
         self.0.ttl()
     }
