@@ -1,6 +1,6 @@
 [package]
 name = "socks5-impl"
-version = "0.5.14"
+version = "0.5.15"
 authors = ["ssrlive <ssrlivebox@gmail.com>"]
 description = "Fundamental abstractions and async read / write functions for SOCKS5 protocol and Relatively low-level asynchronized SOCKS5 server implementation based on tokio"
 categories = ["network-programming", "asynchronous"]
