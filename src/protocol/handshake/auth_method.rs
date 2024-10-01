@@ -1,8 +1,9 @@
 /// A proxy authentication method.
 #[repr(u8)]
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Default)]
 pub enum AuthMethod {
     /// No authentication required.
+    #[default]
     NoAuth = 0x00,
     /// GSS API.
     GssApi = 0x01,

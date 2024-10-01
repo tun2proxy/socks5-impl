@@ -2,7 +2,7 @@
 
 #[cfg(feature = "tokio")]
 pub mod client;
-pub mod error;
+pub(crate) mod error;
 pub mod protocol;
 #[cfg(feature = "tokio")]
 pub mod server;

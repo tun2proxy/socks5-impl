@@ -7,8 +7,9 @@ use async_trait::async_trait;
 use tokio::io::{AsyncRead, AsyncReadExt};
 
 #[repr(u8)]
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Default)]
 pub enum Status {
+    #[default]
     Succeeded = 0x00,
     Failed = 0xff,
 }

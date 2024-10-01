@@ -11,9 +11,10 @@ use std::{
 #[cfg(feature = "tokio")]
 use tokio::io::{AsyncRead, AsyncReadExt};
 
-#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Default)]
 #[repr(u8)]
 pub enum AddressType {
+    #[default]
     IPv4 = 0x01,
     Domain = 0x03,
     IPv6 = 0x04,

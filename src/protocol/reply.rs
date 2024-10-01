@@ -1,6 +1,7 @@
 #[repr(u8)]
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Default)]
 pub enum Reply {
+    #[default]
     Succeeded = 0x00,
     GeneralFailure = 0x01,
     ConnectionNotAllowed = 0x02,

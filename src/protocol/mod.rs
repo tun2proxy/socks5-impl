@@ -26,9 +26,10 @@ use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
 
 /// SOCKS protocol version, either 4 or 5
 #[repr(u8)]
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Default)]
 pub enum Version {
     V4 = 4,
+    #[default]
     V5 = 5,
 }
 
