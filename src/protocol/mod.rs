@@ -18,6 +18,7 @@ pub use self::{
     response::Response,
     udp::UdpHeader,
 };
+pub use bytes::BufMut;
 
 #[cfg(feature = "tokio")]
 use async_trait::async_trait;
