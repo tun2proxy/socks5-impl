@@ -168,7 +168,7 @@ impl StreamOperation for Address {
 impl AsyncStreamOperation for Address {
     async fn retrieve_from_async_stream<R>(stream: &mut R) -> std::io::Result<Self>
     where
-        R: AsyncRead + Unpin + Send,
+        R: AsyncRead + Unpin + Send + ?Sized,
     {
         let atyp = stream.read_u8().await?;
         match AddressType::try_from(atyp)? {

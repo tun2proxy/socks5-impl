@@ -64,7 +64,7 @@ impl StreamOperation for Response {
 impl AsyncStreamOperation for Response {
     async fn retrieve_from_async_stream<R>(r: &mut R) -> std::io::Result<Self>
     where
-        R: AsyncRead + Unpin + Send,
+        R: AsyncRead + Unpin + Send + ?Sized,
     {
         let ver = Version::try_from(r.read_u8().await?)?;
 

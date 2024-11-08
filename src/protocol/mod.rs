@@ -85,12 +85,12 @@ pub trait StreamOperation {
 pub trait AsyncStreamOperation: StreamOperation {
     async fn retrieve_from_async_stream<R>(r: &mut R) -> std::io::Result<Self>
     where
-        R: AsyncRead + Unpin + Send,
+        R: AsyncRead + Unpin + Send + ?Sized,
         Self: Sized;
 
     async fn write_to_async_stream<W>(&self, w: &mut W) -> std::io::Result<()>
     where
-        W: AsyncWrite + Unpin + Send,
+        W: AsyncWrite + Unpin + Send + ?Sized,
     {
         let mut buf = bytes::BytesMut::with_capacity(self.len());
         self.write_to_buf(&mut buf);

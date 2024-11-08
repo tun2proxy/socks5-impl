@@ -1,12 +1,12 @@
 use crate::{
     error::{Error, Result},
-    protocol::{Address, AddressType, AuthMethod, Command, Reply, StreamOperation, UserKey, Version},
+    protocol::{Address, AddressType, AsyncStreamOperation, AuthMethod, Command, Reply, StreamOperation, UserKey, Version},
 };
 use async_trait::async_trait;
 use std::{
     fmt::Debug,
     io::Cursor,
-    net::{Ipv4Addr, Ipv6Addr, SocketAddr, ToSocketAddrs},
+    net::{SocketAddr, ToSocketAddrs},
     time::Duration,
 };
 use tokio::{
@@ -68,28 +68,7 @@ pub trait Socks5Reader: AsyncReadExt + Unpin {
     }
 
     async fn read_address(&mut self) -> Result<Address> {
-        let atyp = self.read_atyp().await?;
-        let addr = match atyp {
-            AddressType::IPv4 => {
-                let mut ip = [0; 4];
-                self.read_exact(&mut ip).await?;
-                let port = self.read_u16().await?;
-                Address::from((Ipv4Addr::from(ip), port))
-            }
-            AddressType::IPv6 => {
-                let mut ip = [0; 16];
-                self.read_exact(&mut ip).await?;
-                let port = self.read_u16().await?;
-                Address::from((Ipv6Addr::from(ip), port))
-            }
-            AddressType::Domain => {
-                let str = self.read_string().await?;
-                let port = self.read_u16().await?;
-                Address::from((str, port))
-            }
-        };
-
-        Ok(addr)
+        Ok(Address::retrieve_from_async_stream(self).await?)
     }
 
     async fn read_string(&mut self) -> Result<String> {
@@ -166,23 +145,7 @@ pub trait Socks5Writer: AsyncWriteExt + Unpin {
     }
 
     async fn write_address(&mut self, address: &Address) -> Result<()> {
-        match address {
-            Address::SocketAddress(SocketAddr::V4(addr)) => {
-                self.write_atyp(AddressType::IPv4).await?;
-                self.write_all(&addr.ip().octets()).await?;
-                self.write_u16(addr.port()).await?;
-            }
-            Address::SocketAddress(SocketAddr::V6(addr)) => {
-                self.write_atyp(AddressType::IPv6).await?;
-                self.write_all(&addr.ip().octets()).await?;
-                self.write_u16(addr.port()).await?;
-            }
-            Address::DomainAddress(domain, port) => {
-                self.write_atyp(AddressType::Domain).await?;
-                self.write_string(domain).await?;
-                self.write_u16(*port).await?;
-            }
-        }
+        address.write_to_async_stream(self).await?;
         Ok(())
     }
 
@@ -260,7 +223,6 @@ where
     let method: AuthMethod = stream.read_selection_msg().await?;
     match method {
         AuthMethod::NoAuth => {}
-        // FIXME: until if let in match is stabilized
         AuthMethod::UserPass if auth.is_some() => {
             username_password_auth(stream, auth.as_ref().unwrap()).await?;
         }

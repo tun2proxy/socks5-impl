@@ -79,7 +79,7 @@ impl StreamOperation for Request {
 impl AsyncStreamOperation for Request {
     async fn retrieve_from_async_stream<R>(r: &mut R) -> std::io::Result<Self>
     where
-        R: AsyncRead + Unpin + Send,
+        R: AsyncRead + Unpin + Send + ?Sized,
     {
         let ver = r.read_u8().await?;
 
