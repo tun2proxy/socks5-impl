@@ -1,10 +1,10 @@
 #![doc = include_str!("../README.md")]
 
-#[cfg(feature = "tokio")]
+#[cfg(feature = "client")]
 pub mod client;
 pub(crate) mod error;
 pub mod protocol;
-#[cfg(feature = "tokio")]
+#[cfg(feature = "server")]
 pub mod server;
 
 pub use crate::error::{Error, Result};

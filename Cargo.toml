@@ -11,7 +11,10 @@ license = "GPL-3.0-or-later"
 repository = "https://github.com/ssrlive/socks5-impl"
 
 [features]
-default = ["tokio"]
+# default = ["serde", "client", "server", "tokio"]
+client = ["tokio"]
+serde = ["dep:serde"]
+server = ["tokio"]
 tokio = ["dep:tokio"]
 
 [dependencies]
@@ -20,25 +23,31 @@ async-trait = "0.1"
 byteorder = "1"
 bytes = "1"
 percent-encoding = "2"
-serde = { version = "1", features = ["derive"] }
+serde = { version = "1", features = ["derive"], optional = true }
 thiserror = "2"
-tokio = { version = "1", features = ["full"], optional = true }
+tokio = { version = "1", default-features = false, features = [
+    "net",
+    "io-util",
+    "time",
+    "macros",
+    "rt",
+], optional = true }
 
 [dev-dependencies]
 clap = { version = "4", features = ["derive"] }
 ctrlc2 = { version = "3", features = ["tokio", "termination"] }
 dotenvy = "0.15"
 env_logger = "0.11"
+hickory-proto = "0.24"
 log = "0.4"
 moka = { version = "0.12", features = ["future"] }
 rand = "0.8"
-tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
-hickory-proto = "0.24"
+tokio = { version = "1", features = ["rt-multi-thread"] }
 
 [[example]]
 name = "demo-client"
 path = "examples/demo-client.rs"
-required-features = ["tokio"]
+required-features = ["client"]
 
 [[example]]
 name = "demo-server"
@@ -48,14 +57,14 @@ required-features = ["tokio"]
 [[example]]
 name = "dns-query"
 path = "examples/dns-query.rs"
-required-features = ["tokio"]
+required-features = ["client"]
 
 [[example]]
 name = "s5-server"
 path = "examples/s5-server.rs"
-required-features = ["tokio"]
+required-features = ["server"]
 
 [[example]]
 name = "udp-client"
 path = "examples/udp-client.rs"
-required-features = ["tokio"]
+required-features = ["client"]
