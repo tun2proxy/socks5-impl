@@ -1,11 +1,11 @@
 use socks5_impl::{
-    protocol::{Address, Reply, UdpHeader},
-    server::{auth, connection::associate, AssociatedUdpSocket, ClientConnection, IncomingConnection, Server, UdpAssociate},
     Error, Result,
+    protocol::{Address, Reply, UdpHeader},
+    server::{AssociatedUdpSocket, ClientConnection, IncomingConnection, Server, UdpAssociate, auth, connection::associate},
 };
 use std::{
     net::{SocketAddr, ToSocketAddrs},
-    sync::{atomic::AtomicBool, Arc},
+    sync::{Arc, atomic::AtomicBool},
 };
 use tokio::{
     io,

@@ -1,8 +1,8 @@
 #![allow(dead_code)]
 
 use hickory_proto::{
-    op::{header::MessageType, op_code::OpCode, query::Query, Message, ResponseCode},
-    rr::{record_type::RecordType, Name, RData},
+    op::{Message, ResponseCode, header::MessageType, op_code::OpCode, query::Query},
+    rr::{Name, RData, record_type::RecordType},
 };
 use std::{net::IpAddr, str::FromStr};
 

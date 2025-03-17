@@ -1,4 +1,4 @@
-use crate::protocol::{handshake::password_method, AsyncStreamOperation, AuthMethod, UserKey};
+use crate::protocol::{AsyncStreamOperation, AuthMethod, UserKey, handshake::password_method};
 use as_any::AsAny;
 use async_trait::async_trait;
 use std::sync::Arc;

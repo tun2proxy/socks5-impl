@@ -1,4 +1,4 @@
-use socks5_impl::{client::UdpClientImpl, protocol::UserKey, Result};
+use socks5_impl::{Result, client::UdpClientImpl, protocol::UserKey};
 use std::{
     net::{SocketAddr, ToSocketAddrs},
     time::Duration,

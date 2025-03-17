@@ -1,6 +1,6 @@
 use self::{associate::UdpAssociate, bind::Bind, connect::Connect};
 use crate::{
-    protocol::{self, handshake, Address, AsyncStreamOperation, AuthMethod, Command},
+    protocol::{self, Address, AsyncStreamOperation, AuthMethod, Command, handshake},
     server::AuthAdaptor,
 };
 use std::{net::SocketAddr, time::Duration};
@@ -119,11 +119,7 @@ impl<O: 'static> IncomingConnection<O> {
 
     fn evaluate_request(&self, req: &handshake::Request) -> Option<AuthMethod> {
         let method = self.auth.auth_method();
-        if req.evaluate_method(method) {
-            Some(method)
-        } else {
-            None
-        }
+        if req.evaluate_method(method) { Some(method) } else { None }
     }
 }
 

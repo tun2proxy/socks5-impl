@@ -10,10 +10,10 @@ pub mod connection;
 pub use crate::{
     server::auth::{AuthAdaptor, AuthExecutor},
     server::connection::{
+        ClientConnection, IncomingConnection,
         associate::{AssociatedUdpSocket, UdpAssociate},
         bind::Bind,
         connect::Connect,
-        ClientConnection, IncomingConnection,
     },
 };
 

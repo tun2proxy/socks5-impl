@@ -10,8 +10,8 @@ pub use self::{
     address::{Address, AddressType},
     command::Command,
     handshake::{
-        password_method::{self, UserKey},
         AuthMethod,
+        password_method::{self, UserKey},
     },
     reply::Reply,
     request::Request,

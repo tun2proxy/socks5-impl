@@ -1,4 +1,4 @@
-use socks5_impl::{client, Result};
+use socks5_impl::{Result, client};
 use tokio::io::{AsyncReadExt, AsyncWriteExt, BufStream};
 use tokio::net::TcpStream;
 

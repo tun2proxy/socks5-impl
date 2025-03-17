@@ -490,9 +490,9 @@ impl UdpClientImpl<SocksUdpClient> {
 #[cfg(test)]
 mod tests {
     use crate::{
+        Error, Result,
         client::{self, SocksListener, SocksUdpClient, UdpClientTrait},
         protocol::{Address, UserKey},
-        Error, Result,
     };
     use async_trait::async_trait;
     use std::{

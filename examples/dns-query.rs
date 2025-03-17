@@ -1,7 +1,7 @@
 mod util;
 
 use hickory_proto::rr::record_type::RecordType;
-use socks5_impl::{client, protocol::UserKey, Result};
+use socks5_impl::{Result, client, protocol::UserKey};
 use std::{net::SocketAddr, time::Duration};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
