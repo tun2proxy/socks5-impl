@@ -1,5 +1,4 @@
 use crate::protocol::{AsyncStreamOperation, AuthMethod, UserKey, handshake::password_method};
-use as_any::AsAny;
 use async_trait::async_trait;
 use std::sync::Arc;
 use tokio::net::TcpStream;
@@ -36,7 +35,7 @@ use tokio::net::TcpStream;
 /// ```
 #[async_trait]
 pub trait AuthExecutor {
-    type Output: AsAny;
+    type Output;
     fn auth_method(&self) -> AuthMethod;
     async fn execute(&self, stream: &mut TcpStream) -> Self::Output;
 }
