@@ -19,7 +19,6 @@ tokio = ["dep:tokio"]
 
 [dependencies]
 async-trait = "0.1"
-byteorder = "1"
 bytes = "1"
 percent-encoding = "2"
 serde = { version = "1", features = ["derive"], optional = true }
