@@ -18,7 +18,6 @@ server = ["tokio"]
 tokio = ["dep:tokio"]
 
 [dependencies]
-as-any = "0.3"
 async-trait = "0.1"
 byteorder = "1"
 bytes = "1"
