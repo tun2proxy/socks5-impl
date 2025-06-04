@@ -86,7 +86,7 @@ impl AuthExecutor for UserKeyAuth {
         if is_equal {
             Ok(true)
         } else {
-            Err(std::io::Error::new(std::io::ErrorKind::Other, "username or password is incorrect"))
+            Err(std::io::Error::other("username or password is incorrect"))
         }
     }
 }

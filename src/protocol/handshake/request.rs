@@ -26,7 +26,7 @@ impl Request {
     }
 
     pub fn evaluate_method(&self, server_method: AuthMethod) -> bool {
-        self.methods.iter().any(|&m| m == server_method)
+        self.methods.contains(&server_method)
     }
 }
 
