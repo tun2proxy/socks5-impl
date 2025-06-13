@@ -4,14 +4,15 @@ use socks5_impl::{
     server::{AssociatedUdpSocket, ClientConnection, IncomingConnection, Server, UdpAssociate, auth, connection::associate},
 };
 use std::{
-    net::{SocketAddr, ToSocketAddrs},
-    sync::{Arc, atomic::AtomicBool},
+    net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, ToSocketAddrs},
+    sync::Arc,
 };
 use tokio::{
     io,
     net::{TcpStream, UdpSocket},
     sync::Mutex,
 };
+use tokio_util::sync::CancellationToken;
 
 /// Simple socks5 proxy server.
 #[derive(clap::Parser, Debug, Clone, PartialEq, Eq)]
@@ -55,52 +56,47 @@ async fn main() -> Result<()> {
     let default = format!("{}={:?}", module_path!(), opt.verbosity);
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or(default)).init();
 
-    let exiting_flag = Arc::new(AtomicBool::new(false));
-    let exiting_flag_clone = exiting_flag.clone();
+    let token = CancellationToken::new();
+    let cloned_token = token.clone();
 
-    let local_addr = opt.listen_addr;
-
-    ctrlc2::set_async_handler(async move {
-        exiting_flag_clone.store(true, std::sync::atomic::Ordering::Relaxed);
-
-        let addr = if local_addr.is_ipv6() {
-            SocketAddr::from((std::net::Ipv6Addr::LOCALHOST, local_addr.port()))
-        } else {
-            SocketAddr::from((std::net::Ipv4Addr::LOCALHOST, local_addr.port()))
-        };
-        let _ = std::net::TcpStream::connect(addr);
+    let ctrlc = ctrlc2::AsyncCtrlC::new(move || {
         log::info!("");
         log::info!("Ctrl-C received, shutting down...");
-    })
-    .await;
+        cloned_token.cancel();
+        true
+    })?;
 
     match (opt.username, opt.password) {
         (Some(username), password) => {
             let password = password.unwrap_or_default();
             let auth = Arc::new(auth::UserKeyAuth::new(&username, &password));
-            main_loop(auth, opt.listen_addr, Some(exiting_flag)).await?;
+            main_loop(auth, opt.listen_addr, token).await?;
         }
         _ => {
             let auth = Arc::new(auth::NoAuth);
-            main_loop(auth, opt.listen_addr, Some(exiting_flag)).await?;
+            main_loop(auth, opt.listen_addr, token).await?;
         }
     }
+
+    ctrlc.await?;
 
     Ok(())
 }
 
-async fn main_loop<S>(auth: auth::AuthAdaptor<S>, listen_addr: SocketAddr, exiting_flag: Option<Arc<AtomicBool>>) -> Result<()>
+async fn main_loop<S>(auth: auth::AuthAdaptor<S>, listen_addr: SocketAddr, token: CancellationToken) -> Result<()>
 where
     S: Send + Sync + 'static,
 {
     let server = Server::bind(listen_addr, auth).await?;
 
-    while let Ok((conn, _)) = server.accept().await {
-        if let Some(exiting_flag) = &exiting_flag {
-            if exiting_flag.load(std::sync::atomic::Ordering::Relaxed) {
+    loop {
+        let (conn, _) = tokio::select! {
+            _ = token.cancelled() => {
+                log::info!("CancellationToken fired, session will be closed");
                 break;
             }
-        }
+            conn = server.accept() => conn?,
+        };
         tokio::spawn(async move {
             if let Err(err) = handle(conn).await {
                 log::error!("{err}");
@@ -174,7 +170,12 @@ pub(crate) async fn handle_s5_upd_associate(associate: UdpAssociate<associate::N
             let buf_size = MAX_UDP_RELAY_PACKET_SIZE - UdpHeader::max_serialized_len();
             let listen_udp = Arc::new(AssociatedUdpSocket::from((listen_udp, buf_size)));
 
-            let zero_addr = SocketAddr::from(([0, 0, 0, 0], 0));
+            let zero_ip: IpAddr = match listen_addr {
+                SocketAddr::V4(_) => std::net::IpAddr::V4(Ipv4Addr::UNSPECIFIED),
+                SocketAddr::V6(_) => std::net::IpAddr::V6(Ipv6Addr::UNSPECIFIED),
+            };
+
+            let zero_addr = SocketAddr::from((zero_ip, 0));
 
             let incoming_addr = Arc::new(Mutex::new(zero_addr));
 

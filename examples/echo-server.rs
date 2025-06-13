@@ -79,15 +79,12 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
         Ok::<(), std::io::Error>(())
     });
 
-    let (tx, mut rx) = tokio::sync::mpsc::channel::<()>(1);
-
-    ctrlc2::set_async_handler(async move {
-        tx.send(()).await.unwrap();
+    let ctrlc = ctrlc2::AsyncCtrlC::new(|| {
         log::info!("Ctrl-C received, shutting down...");
-    })
-    .await;
+        true
+    })?;
 
-    rx.recv().await.unwrap();
+    ctrlc.await?;
     log::info!("Exiting...");
 
     Ok(())
