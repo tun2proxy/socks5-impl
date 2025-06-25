@@ -1,5 +1,4 @@
 use crate::protocol::{AsyncStreamOperation, AuthMethod, UserKey, handshake::password_method};
-use async_trait::async_trait;
 use std::sync::Arc;
 use tokio::net::TcpStream;
 
@@ -12,14 +11,13 @@ use tokio::net::TcpStream;
 ///
 /// # Example
 /// ```rust
-/// use async_trait::async_trait;
 /// use socks5_impl::protocol::AuthMethod;
 /// use socks5_impl::server::AuthExecutor;
 /// use tokio::net::TcpStream;
 ///
 /// pub struct MyAuth;
 ///
-/// #[async_trait]
+/// #[async_trait::async_trait]
 /// impl AuthExecutor for MyAuth {
 ///     type Output = std::io::Result<usize>;
 ///
@@ -33,7 +31,7 @@ use tokio::net::TcpStream;
 ///     }
 /// }
 /// ```
-#[async_trait]
+#[async_trait::async_trait]
 pub trait AuthExecutor {
     type Output;
     fn auth_method(&self) -> AuthMethod;
@@ -46,7 +44,7 @@ pub type AuthAdaptor<O> = Arc<dyn AuthExecutor<Output = O> + Send + Sync>;
 #[derive(Debug, Default)]
 pub struct NoAuth;
 
-#[async_trait]
+#[async_trait::async_trait]
 impl AuthExecutor for NoAuth {
     type Output = ();
     fn auth_method(&self) -> AuthMethod {
@@ -68,7 +66,7 @@ impl UserKeyAuth {
     }
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl AuthExecutor for UserKeyAuth {
     type Output = std::io::Result<bool>;
 

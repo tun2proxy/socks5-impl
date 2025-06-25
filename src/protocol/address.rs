@@ -1,8 +1,6 @@
 #[cfg(feature = "tokio")]
 use crate::protocol::AsyncStreamOperation;
 use crate::protocol::StreamOperation;
-#[cfg(feature = "tokio")]
-use async_trait::async_trait;
 use bytes::BufMut;
 use std::{
     io::Cursor,
@@ -164,7 +162,7 @@ impl StreamOperation for Address {
 }
 
 #[cfg(feature = "tokio")]
-#[async_trait]
+#[async_trait::async_trait]
 impl AsyncStreamOperation for Address {
     async fn retrieve_from_async_stream<R>(stream: &mut R) -> std::io::Result<Self>
     where

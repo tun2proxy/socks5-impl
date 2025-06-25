@@ -2,7 +2,6 @@ use crate::{
     error::{Error, Result},
     protocol::{Address, AddressType, AsyncStreamOperation, AuthMethod, Command, Reply, StreamOperation, UserKey, Version},
 };
-use async_trait::async_trait;
 use std::{
     fmt::Debug,
     io::Cursor,
@@ -14,7 +13,7 @@ use tokio::{
     net::{TcpStream, UdpSocket},
 };
 
-#[async_trait]
+#[async_trait::async_trait]
 pub trait Socks5Reader: AsyncReadExt + Unpin {
     async fn read_version(&mut self) -> Result<()> {
         let value = Version::try_from(self.read_u8().await?)?;
@@ -109,10 +108,10 @@ pub trait Socks5Reader: AsyncReadExt + Unpin {
     }
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl<T: AsyncReadExt + Unpin> Socks5Reader for T {}
 
-#[async_trait]
+#[async_trait::async_trait]
 pub trait Socks5Writer: AsyncWriteExt + Unpin {
     async fn write_version(&mut self) -> Result<()> {
         self.write_u8(0x05).await?;
@@ -189,7 +188,7 @@ pub trait Socks5Writer: AsyncWriteExt + Unpin {
     }
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl<T: AsyncWriteExt + Unpin> Socks5Writer for T {}
 
 async fn username_password_auth<S>(stream: &mut S, auth: &UserKey) -> Result<()>
@@ -426,7 +425,7 @@ where
 pub type GuardTcpStream = BufStream<TcpStream>;
 pub type SocksUdpClient = SocksDatagram<GuardTcpStream>;
 
-#[async_trait]
+#[async_trait::async_trait]
 pub trait UdpClientTrait {
     async fn send_to<A>(&mut self, buf: &[u8], addr: A) -> Result<usize>
     where
@@ -435,7 +434,7 @@ pub trait UdpClientTrait {
     async fn recv_from(&mut self, timeout: Duration, buf: &mut Vec<u8>) -> Result<(usize, Address)>;
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl UdpClientTrait for SocksUdpClient {
     async fn send_to<A>(&mut self, buf: &[u8], addr: A) -> Result<usize, Error>
     where
@@ -494,7 +493,6 @@ mod tests {
         client::{self, SocksListener, SocksUdpClient, UdpClientTrait},
         protocol::{Address, UserKey},
     };
-    use async_trait::async_trait;
     use std::{
         net::{SocketAddr, ToSocketAddrs},
         sync::Arc,
@@ -563,7 +561,7 @@ mod tests {
 
     type TestHalves = (Arc<SocksUdpClient>, Arc<SocksUdpClient>);
 
-    #[async_trait]
+    #[async_trait::async_trait]
     impl UdpClientTrait for TestHalves {
         async fn send_to<A>(&mut self, buf: &[u8], addr: A) -> Result<usize, Error>
         where

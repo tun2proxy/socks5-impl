@@ -2,8 +2,6 @@
 use crate::protocol::AsyncStreamOperation;
 use crate::protocol::{AuthMethod, StreamOperation, Version};
 #[cfg(feature = "tokio")]
-use async_trait::async_trait;
-#[cfg(feature = "tokio")]
 use tokio::io::{AsyncRead, AsyncReadExt};
 
 /// SOCKS5 handshake request
@@ -67,7 +65,7 @@ impl StreamOperation for Request {
 }
 
 #[cfg(feature = "tokio")]
-#[async_trait]
+#[async_trait::async_trait]
 impl AsyncStreamOperation for Request {
     async fn retrieve_from_async_stream<R>(r: &mut R) -> std::io::Result<Self>
     where

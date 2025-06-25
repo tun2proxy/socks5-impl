@@ -15,10 +15,10 @@ repository = "https://github.com/ssrlive/socks5-impl"
 client = ["tokio"]
 serde = ["dep:serde"]
 server = ["tokio"]
-tokio = ["dep:tokio"]
+tokio = ["dep:tokio", "async-trait"]
 
 [dependencies]
-async-trait = "0.1"
+async-trait = { version = "0.1", optional = true }
 bytes = "1"
 percent-encoding = "2"
 serde = { version = "1", features = ["derive"], optional = true }
