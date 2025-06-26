@@ -10,6 +10,9 @@ readme = "README.md"
 license = "GPL-3.0-or-later"
 repository = "https://github.com/ssrlive/socks5-impl"
 
+[package.metadata.docs.rs]
+all-features = true
+
 [features]
 # default = ["serde", "client", "server", "tokio"]
 client = ["tokio"]
