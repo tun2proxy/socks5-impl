@@ -17,7 +17,7 @@ impl TryFrom<u8> for Reply {
     type Error = std::io::Error;
 
     fn try_from(code: u8) -> Result<Self, Self::Error> {
-        let err = format!("Unsupported reply code {0:#x}", code);
+        let err = format!("Unsupported reply code {code:#x}");
         match code {
             0x00 => Ok(Reply::Succeeded),
             0x01 => Ok(Reply::GeneralFailure),
@@ -62,7 +62,7 @@ impl std::fmt::Display for Reply {
             Reply::CommandNotSupported => "Reply::CommandNotSupported",
             Reply::AddressTypeNotSupported => "Reply::AddressTypeNotSupported",
         };
-        write!(f, "{}", s)
+        write!(f, "{s}")
     }
 }
 

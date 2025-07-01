@@ -26,7 +26,7 @@ impl std::fmt::Display for UserKey {
             (false, false) => {
                 let username = percent_encode(self.username.as_bytes(), NON_ALPHANUMERIC).to_string();
                 let password = percent_encode(self.password.as_bytes(), NON_ALPHANUMERIC).to_string();
-                write!(f, "{}:{}", username, password)
+                write!(f, "{username}:{password}")
             }
         }
     }

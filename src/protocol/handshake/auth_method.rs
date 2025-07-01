@@ -55,8 +55,8 @@ impl std::fmt::Display for AuthMethod {
             AuthMethod::NoAuth => write!(f, "NoAuth"),
             AuthMethod::GssApi => write!(f, "GssApi"),
             AuthMethod::UserPass => write!(f, "UserPass"),
-            AuthMethod::IanaReserved(value) => write!(f, "IanaReserved({0:#x})", value),
-            AuthMethod::Private(value) => write!(f, "Private({0:#x})", value),
+            AuthMethod::IanaReserved(value) => write!(f, "IanaReserved({value:#x})"),
+            AuthMethod::Private(value) => write!(f, "Private({value:#x})"),
             AuthMethod::NoAcceptableMethods => write!(f, "NoAcceptableMethods"),
         }
     }

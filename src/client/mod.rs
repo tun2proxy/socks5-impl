@@ -62,7 +62,7 @@ pub trait Socks5Reader: AsyncReadExt + Unpin {
         let value = self.read_u8().await?;
         match Reply::try_from(value)? {
             Reply::Succeeded => Ok(()),
-            reply => Err(format!("{}", reply).into()),
+            reply => Err(format!("{reply}").into()),
         }
     }
 
@@ -555,7 +555,7 @@ mod tests {
             Ok::<_, Error>(())
         };
         if let Err(e) = run_block.await {
-            println!("{:?}", e);
+            println!("{e:?}");
         }
     }
 

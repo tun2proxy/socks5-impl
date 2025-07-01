@@ -216,7 +216,7 @@ pub(crate) async fn handle_s5_upd_associate(associate: UdpAssociate<associate::N
                         }
                     },
                     _ = reply_listener.wait_until_closed() => {
-                        log::trace!("[UDP] {} listener closed", listen_addr);
+                        log::trace!("[UDP] {listen_addr} listener closed");
                         break Ok::<_, Error>(());
                     },
                 };

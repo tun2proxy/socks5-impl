@@ -25,21 +25,21 @@ async fn tcp_main<A: ToSocketAddrs>(addr: A, tcp_timeout: u64) -> std::io::Resul
         tokio::spawn(async move {
             let block = async move {
                 let mut buf = vec![0; 1024];
-                log::info!("[TCP] incoming peer {}", peer);
+                log::info!("[TCP] incoming peer {peer}");
                 loop {
                     let duration = std::time::Duration::from_secs(tcp_timeout);
                     let n = tokio::time::timeout(duration, socket.read(&mut buf)).await??;
                     if n == 0 {
-                        log::info!("[TCP] {} exit", peer);
+                        log::info!("[TCP] {peer} exit");
                         break;
                     }
                     let amt = socket.write(&buf[0..n]).await?;
-                    log::info!("[TCP] Echoed {}/{} bytes to {}", amt, n, peer);
+                    log::info!("[TCP] Echoed {amt}/{n} bytes to {peer}");
                 }
                 Ok::<(), std::io::Error>(())
             };
             if let Err(err) = block.await {
-                log::info!("[TCP] {}", err);
+                log::info!("[TCP] {err}");
             }
         });
     }
@@ -55,7 +55,7 @@ async fn udp_main<A: ToSocketAddrs>(addr: A) -> std::io::Result<()> {
     loop {
         if let Some((size, peer)) = to_send {
             let amt = socket.send_to(&buf[..size], &peer).await?;
-            log::info!("[UDP] Echoed {}/{} bytes to {}", amt, size, peer);
+            log::info!("[UDP] Echoed {amt}/{size} bytes to {peer}");
         }
 
         to_send = Some(socket.recv_from(&mut buf).await?);

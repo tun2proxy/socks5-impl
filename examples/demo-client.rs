@@ -17,7 +17,7 @@ async fn main() -> Result<()> {
     // read http response
     let mut buf = vec![0; 1024];
     let n = stream.read(&mut buf).await?;
-    println!("read {} bytes", n);
+    println!("read {n} bytes");
     println!("{}", String::from_utf8_lossy(&buf[..n]));
 
     Ok(())

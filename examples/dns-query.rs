@@ -75,7 +75,7 @@ async fn main() -> Result<()> {
     assert_eq!(&domain, &opt.domain);
 
     let addr = dns::extract_ipaddr_from_dns_message(&message)?;
-    println!("{}", addr);
+    println!("{addr}");
 
     Ok(())
 }
@@ -100,7 +100,7 @@ async fn dns_query_from_server(opt: &CmdOpt, msg_buf: &[u8]) -> Result<Vec<u8>> 
             // read dns response
             let mut buf = vec![0; 1500];
             let n = tokio::time::timeout(timeout, stream.read(&mut buf)).await??;
-            log::trace!("read {} bytes", n);
+            log::trace!("read {n} bytes");
             buf.truncate(n);
             buf
         }
