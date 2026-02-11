@@ -94,6 +94,7 @@ impl Bind<NeedFirstReply> {
     /// that allows the process to continue as quickly as possible.
     #[inline]
     pub fn set_linger(&self, dur: Option<Duration>) -> std::io::Result<()> {
+        #[allow(deprecated)]
         self.stream.set_linger(dur)
     }
 
@@ -186,6 +187,7 @@ impl Bind<NeedSecondReply> {
     /// that allows the process to continue as quickly as possible.
     #[inline]
     pub fn set_linger(&self, dur: Option<Duration>) -> std::io::Result<()> {
+        #[allow(deprecated)]
         self.stream.set_linger(dur)
     }
 

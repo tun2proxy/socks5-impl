@@ -58,6 +58,7 @@ impl<O: 'static> IncomingConnection<O> {
     /// that allows the process to continue as quickly as possible.
     #[inline]
     pub fn set_linger(&self, dur: Option<Duration>) -> std::io::Result<()> {
+        #[allow(deprecated)]
         self.stream.set_linger(dur)
     }
 
@@ -213,6 +214,7 @@ impl Authenticated {
     /// that allows the process to continue as quickly as possible.
     #[inline]
     pub fn set_linger(&self, dur: Option<Duration>) -> std::io::Result<()> {
+        #[allow(deprecated)]
         self.0.set_linger(dur)
     }
 
