@@ -77,27 +77,6 @@ impl Bind<NeedFirstReply> {
         self.stream.peer_addr()
     }
 
-    /// Reads the linger duration for this socket by getting the `SO_LINGER` option.
-    ///
-    /// For more information about this option, see [`set_linger`](crate::server::connection::Bind::set_linger).
-    #[inline]
-    pub fn linger(&self) -> std::io::Result<Option<Duration>> {
-        self.stream.linger()
-    }
-
-    /// Sets the linger duration of this socket by setting the `SO_LINGER` option.
-    ///
-    /// This option controls the action taken when a stream has unsent messages and the stream is closed.
-    /// If `SO_LINGER` is set, the system shall block the process until it can transmit the data or until the time expires.
-    ///
-    /// If `SO_LINGER` is not specified, and the stream is closed, the system handles the call in a way
-    /// that allows the process to continue as quickly as possible.
-    #[inline]
-    pub fn set_linger(&self, dur: Option<Duration>) -> std::io::Result<()> {
-        #[allow(deprecated)]
-        self.stream.set_linger(dur)
-    }
-
     /// Gets the value of the `TCP_NODELAY` option on this socket.
     ///
     /// For more information about this option, see [`set_nodelay`](crate::server::connection::Bind::set_nodelay).
@@ -168,27 +147,6 @@ impl Bind<NeedSecondReply> {
     #[inline]
     pub fn peer_addr(&self) -> std::io::Result<SocketAddr> {
         self.stream.peer_addr()
-    }
-
-    /// Reads the linger duration for this socket by getting the `SO_LINGER` option.
-    ///
-    /// For more information about this option, see [`set_linger`](crate::server::connection::Bind::set_linger).
-    #[inline]
-    pub fn linger(&self) -> std::io::Result<Option<Duration>> {
-        self.stream.linger()
-    }
-
-    /// Sets the linger duration of this socket by setting the `SO_LINGER` option.
-    ///
-    /// This option controls the action taken when a stream has unsent messages and the stream is closed.
-    /// If `SO_LINGER` is set, the system shall block the process until it can transmit the data or until the time expires.
-    ///
-    /// If `SO_LINGER` is not specified, and the stream is closed, the system handles the call in a way
-    /// that allows the process to continue as quickly as possible.
-    #[inline]
-    pub fn set_linger(&self, dur: Option<Duration>) -> std::io::Result<()> {
-        #[allow(deprecated)]
-        self.stream.set_linger(dur)
     }
 
     /// Gets the value of the `TCP_NODELAY` option on this socket.
