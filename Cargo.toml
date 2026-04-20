@@ -39,7 +39,7 @@ clap = { version = "4.5.58", features = ["derive"] }
 ctrlc2 = { version = "3.7.3", features = ["async", "termination"] }
 dotenvy = "0.15.7"
 env_logger = "0.11.9"
-hickory-proto = "0.25.2"
+hickory-proto = "0.26.0"
 log = "0.4.29"
 moka = { version = "0.12.13", features = ["future"] }
 rand = "0.10.0"
