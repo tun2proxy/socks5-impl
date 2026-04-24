@@ -1,6 +1,6 @@
 mod util;
 
-use hickory_proto::rr::record_type::RecordType;
+use hickory_proto::rr::RecordType;
 use socks5_impl::{Result, client, protocol::UserKey};
 use std::{net::SocketAddr, time::Duration};
 use tokio::{

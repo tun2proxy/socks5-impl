@@ -26,7 +26,7 @@ bytes = "1.11.1"
 percent-encoding = "2.3.2"
 serde = { version = "1.0.228", features = ["derive"], optional = true }
 thiserror = "2.0.18"
-tokio = { version = "1.49.0", default-features = false, features = [
+tokio = { version = "1.52.1", default-features = false, features = [
     "net",
     "io-util",
     "time",
@@ -35,15 +35,15 @@ tokio = { version = "1.49.0", default-features = false, features = [
 ], optional = true }
 
 [dev-dependencies]
-clap = { version = "4.5.58", features = ["derive"] }
+clap = { version = "4.6.1", features = ["derive"] }
 ctrlc2 = { version = "3.7.3", features = ["async", "termination"] }
 dotenvy = "0.15.7"
-env_logger = "0.11.9"
-hickory-proto = "0.25.2"
+env_logger = "0.11.10"
+hickory-proto = "0.26.0"
 log = "0.4.29"
-moka = { version = "0.12.13", features = ["future"] }
-rand = "0.10.0"
-tokio = { version = "1.49.0", features = ["rt-multi-thread"] }
+moka = { version = "0.12.15", features = ["future"] }
+rand = "0.10.1"
+tokio = { version = "1.52.1", features = ["rt-multi-thread"] }
 tokio-util = { version = "0.7.18", features = [] }
 
 [[example]]
