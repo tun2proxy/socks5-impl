@@ -26,7 +26,7 @@ bytes = "1.11.1"
 percent-encoding = "2.3.2"
 serde = { version = "1.0.228", features = ["derive"], optional = true }
 thiserror = "2.0.18"
-tokio = { version = "1.52.1", default-features = false, features = [
+tokio = { version = "1.52.3", default-features = false, features = [
     "net",
     "io-util",
     "time",
@@ -39,11 +39,11 @@ clap = { version = "4.6.1", features = ["derive"] }
 ctrlc2 = { version = "4.0.0", features = ["async", "termination"] }
 dotenvy = "0.15.7"
 env_logger = "0.11.10"
-hickory-proto = "0.26.0"
+hickory-proto = "0.26.1"
 log = "0.4.29"
 moka = { version = "0.12.15", features = ["future"] }
 rand = "0.10.1"
-tokio = { version = "1.52.1", features = ["rt-multi-thread"] }
+tokio = { version = "1.52.3", features = ["rt-multi-thread"] }
 tokio-util = { version = "0.7.18", features = [] }
 
 [[example]]
@@ -70,3 +70,8 @@ required-features = ["server"]
 name = "udp-client"
 path = "examples/udp-client.rs"
 required-features = ["client"]
+
+[[example]]
+name = "echo-server"
+path = "examples/echo-server.rs"
+required-features = ["tokio"]
