@@ -164,7 +164,8 @@ pub trait Socks5Writer: AsyncWriteExt + Unpin {
     }
 
     async fn write_methods(&mut self, methods: &[AuthMethod]) -> Result<()> {
-        self.write_u8(methods.len() as u8).await?;
+        let method_count = u8::try_from(methods.len()).map_err(|_| "Too many authentication methods")?;
+        self.write_u8(method_count).await?;
         for method in methods {
             self.write_method(*method).await?;
         }

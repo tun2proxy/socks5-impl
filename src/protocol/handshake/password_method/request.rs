@@ -59,11 +59,11 @@ impl StreamOperation for Request {
         buf.put_u8(super::SUBNEGOTIATION_VERSION);
 
         let username = self.user_key.username_arr();
-        buf.put_u8(username.len() as u8);
+        buf.put_u8(u8::try_from(username.len()).expect("username too long for SOCKS5"));
         buf.put_slice(&username);
 
         let password = self.user_key.password_arr();
-        buf.put_u8(password.len() as u8);
+        buf.put_u8(u8::try_from(password.len()).expect("password too long for SOCKS5"));
         buf.put_slice(&password);
     }
 

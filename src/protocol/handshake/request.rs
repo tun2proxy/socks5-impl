@@ -53,7 +53,7 @@ impl StreamOperation for Request {
 
     fn write_to_buf<B: bytes::BufMut>(&self, buf: &mut B) {
         buf.put_u8(Version::V5.into());
-        buf.put_u8(self.methods.len() as u8);
+        buf.put_u8(u8::try_from(self.methods.len()).expect("too many handshake methods for SOCKS5"));
 
         let methods = self.methods.iter().map(u8::from).collect::<Vec<u8>>();
         buf.put_slice(&methods);

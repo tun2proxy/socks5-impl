@@ -39,6 +39,10 @@ impl StreamOperation for Response {
         let mut buf = [0; 2];
         stream.read_exact(&mut buf)?;
 
+        if buf[1] != 0x00 {
+            return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "invalid reserved byte"));
+        }
+
         let reply = Reply::try_from(buf[0])?;
         let address = Address::retrieve_from_stream(stream)?;
 
@@ -73,6 +77,10 @@ impl AsyncStreamOperation for Response {
 
         let mut buf = [0; 2];
         r.read_exact(&mut buf).await?;
+
+        if buf[1] != 0x00 {
+            return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "invalid reserved byte"));
+        }
 
         let reply = Reply::try_from(buf[0])?;
         let address = Address::retrieve_from_async_stream(r).await?;

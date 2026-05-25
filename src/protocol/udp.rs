@@ -34,6 +34,10 @@ impl StreamOperation for UdpHeader {
         let mut buf = [0; 3];
         stream.read_exact(&mut buf)?;
 
+        if buf[0] != 0x00 || buf[1] != 0x00 {
+            return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "invalid UDP reserved bytes"));
+        }
+
         let frag = buf[2];
 
         let address = Address::retrieve_from_stream(stream)?;
@@ -60,6 +64,10 @@ impl AsyncStreamOperation for UdpHeader {
     {
         let mut buf = [0; 3];
         r.read_exact(&mut buf).await?;
+
+        if buf[0] != 0x00 || buf[1] != 0x00 {
+            return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "invalid UDP reserved bytes"));
+        }
 
         let frag = buf[2];
 

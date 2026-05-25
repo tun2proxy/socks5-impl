@@ -153,6 +153,12 @@ where
 pub(crate) async fn handle_s5_upd_associate(associate: UdpAssociate<associate::NeedReply>) -> Result<()> {
     // listen on a random port
     let listen_ip = associate.local_addr()?.ip();
+    if listen_ip.is_unspecified() {
+        let mut conn = associate.reply(Reply::GeneralFailure, Address::unspecified()).await?;
+        conn.shutdown().await?;
+        return Err("UDP associate requires a concrete local address".into());
+    }
+
     let udp_listener = UdpSocket::bind(SocketAddr::from((listen_ip, 0))).await;
 
     match udp_listener.and_then(|socket| socket.local_addr().map(|addr| (socket, addr))) {

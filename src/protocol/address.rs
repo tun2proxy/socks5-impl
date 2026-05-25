@@ -163,7 +163,7 @@ impl StreamOperation for Address {
             Self::DomainAddress(addr, port) => {
                 let addr = addr.as_bytes();
                 buf.put_u8(AddressType::Domain.into());
-                buf.put_u8(addr.len() as u8);
+                buf.put_u8(u8::try_from(addr.len()).expect("domain address too long for SOCKS5"));
                 buf.put_slice(addr);
                 buf.put_u16(*port);
             }
