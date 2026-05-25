@@ -22,6 +22,10 @@ pub struct CmdOpt {
     #[clap(short, long, value_name = "address:port", default_value = "127.0.0.1:1080")]
     listen_addr: SocketAddr,
 
+    /// Public IP address advertised in UDP ASSOCIATE replies.
+    #[clap(long, value_name = "ip")]
+    advertise_ip: Option<IpAddr>,
+
     /// Username for socks5 authentication.
     #[clap(short, long, value_name = "username")]
     username: Option<String>,
@@ -70,11 +74,11 @@ async fn main() -> Result<()> {
         (Some(username), password) => {
             let password = password.unwrap_or_default();
             let auth = Arc::new(auth::UserKeyAuth::new(&username, &password));
-            main_loop(auth, opt.listen_addr, token).await?;
+            main_loop(auth, opt.listen_addr, opt.advertise_ip, token).await?;
         }
         _ => {
             let auth = Arc::new(auth::NoAuth);
-            main_loop(auth, opt.listen_addr, token).await?;
+            main_loop(auth, opt.listen_addr, opt.advertise_ip, token).await?;
         }
     }
 
@@ -83,7 +87,12 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-async fn main_loop<S>(auth: auth::AuthAdaptor<S>, listen_addr: SocketAddr, token: CancellationToken) -> Result<()>
+async fn main_loop<S>(
+    auth: auth::AuthAdaptor<S>,
+    listen_addr: SocketAddr,
+    advertise_ip: Option<IpAddr>,
+    token: CancellationToken,
+) -> Result<()>
 where
     S: Send + Sync + 'static,
 {
@@ -98,7 +107,7 @@ where
             conn = server.accept() => conn?,
         };
         tokio::spawn(async move {
-            if let Err(err) = handle(conn).await {
+            if let Err(err) = handle(conn, advertise_ip).await {
                 log::error!("{err}");
             }
         });
@@ -106,7 +115,7 @@ where
     Ok(())
 }
 
-async fn handle<S>(conn: IncomingConnection<S>) -> Result<()>
+async fn handle<S>(conn: IncomingConnection<S>, advertise_ip: Option<IpAddr>) -> Result<()>
 where
     S: Send + Sync + 'static,
 {
@@ -124,7 +133,7 @@ where
 
     match conn.wait_request().await? {
         ClientConnection::UdpAssociate(associate, _) => {
-            handle_s5_upd_associate(associate).await?;
+            handle_s5_upd_associate(associate, advertise_ip).await?;
         }
         ClientConnection::Bind(bind, _) => {
             let mut conn = bind.reply(Reply::CommandNotSupported, Address::unspecified()).await?;
@@ -150,16 +159,23 @@ where
     Ok(())
 }
 
-pub(crate) async fn handle_s5_upd_associate(associate: UdpAssociate<associate::NeedReply>) -> Result<()> {
+pub(crate) async fn handle_s5_upd_associate(associate: UdpAssociate<associate::NeedReply>, advertise_ip: Option<IpAddr>) -> Result<()> {
     // listen on a random port
-    let listen_ip = associate.local_addr()?.ip();
-    if listen_ip.is_unspecified() {
-        let mut conn = associate.reply(Reply::GeneralFailure, Address::unspecified()).await?;
-        conn.shutdown().await?;
-        return Err("UDP associate requires a concrete local address".into());
-    }
+    let local_ip = associate.local_addr()?.ip();
+    let bind_ip = if local_ip.is_unspecified() {
+        match advertise_ip {
+            Some(ip) => ip,
+            None => {
+                let mut conn = associate.reply(Reply::GeneralFailure, Address::unspecified()).await?;
+                conn.shutdown().await?;
+                return Err("UDP associate requires a concrete local address or an advertised IP".into());
+            }
+        }
+    } else {
+        local_ip
+    };
 
-    let udp_listener = UdpSocket::bind(SocketAddr::from((listen_ip, 0))).await;
+    let udp_listener = UdpSocket::bind(SocketAddr::from((bind_ip, 0))).await;
 
     match udp_listener.and_then(|socket| socket.local_addr().map(|addr| (socket, addr))) {
         Err(err) => {
@@ -170,7 +186,8 @@ pub(crate) async fn handle_s5_upd_associate(associate: UdpAssociate<associate::N
         Ok((listen_udp, listen_addr)) => {
             log::info!("[UDP] {listen_addr} listen on");
 
-            let s5_listen_addr = Address::from(listen_addr);
+            let advertised_ip = advertise_ip.unwrap_or(listen_addr.ip());
+            let s5_listen_addr = Address::from(SocketAddr::from((advertised_ip, listen_addr.port())));
             let mut reply_listener = associate.reply(Reply::Succeeded, s5_listen_addr).await?;
 
             let buf_size = MAX_UDP_RELAY_PACKET_SIZE - UdpHeader::max_serialized_len();
