@@ -458,37 +458,29 @@ pub async fn create_udp_client<A: Into<SocketAddr>>(proxy_addr: A, auth: Option<
     SocksDatagram::udp_associate(proxy, client, auth).await
 }
 
-pub struct UdpClientImpl<C> {
+pub struct ClientWrapper<C> {
     client: C,
-    server_addr: Address,
 }
 
-impl UdpClientImpl<SocksUdpClient> {
-    pub async fn transfer_data(&self, data: &[u8], timeout: Duration) -> Result<Vec<u8>> {
-        let _len = self.send(data).await?;
+impl ClientWrapper<SocksUdpClient> {
+    pub async fn transfer_data<A2: Into<Address>>(&self, server_addr: A2, data: &[u8], timeout: Duration) -> Result<Vec<u8>> {
+        let _len = self.send_to(data, server_addr).await?;
         let mut buf = Vec::with_capacity(data.len());
         let (_len, _) = self.recv(timeout, &mut buf).await?;
         Ok(buf)
     }
 
-    pub async fn send(&self, data: &[u8]) -> Result<usize> {
-        self.client.send_to(data, &self.server_addr).await
+    pub async fn send_to<A2: Into<Address>>(&self, data: &[u8], server_addr: A2) -> Result<usize> {
+        self.client.send_to(data, server_addr).await
     }
 
     pub async fn recv(&self, timeout: Duration, buf: &mut Vec<u8>) -> Result<(usize, Address)> {
         self.client.recv_from(timeout, buf).await
     }
 
-    pub async fn datagram<A1, A2>(proxy_addr: A1, udp_server_addr: A2, auth: Option<UserKey>) -> Result<Self>
-    where
-        A1: Into<SocketAddr>,
-        A2: Into<Address>,
-    {
+    pub async fn datagram<A1: Into<SocketAddr>>(proxy_addr: A1, auth: Option<UserKey>) -> Result<Self> {
         let client = create_udp_client(proxy_addr, auth).await?;
-
-        let server_addr = udp_server_addr.into();
-
-        Ok(Self { client, server_addr })
+        Ok(Self { client })
     }
 }
 

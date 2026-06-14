@@ -116,9 +116,9 @@ async fn dns_query_from_server(opt: &CmdOpt, msg_buf: &[u8]) -> Result<Vec<u8>> 
         (false, true) => {
             let proxy_addr = *opt.proxy_addr.as_ref().unwrap();
             let udp_server_addr = opt.remote_dns_server;
-            client::UdpClientImpl::datagram(proxy_addr, udp_server_addr, user_key)
+            client::ClientWrapper::datagram(proxy_addr, user_key)
                 .await?
-                .transfer_data(msg_buf, timeout)
+                .transfer_data(udp_server_addr, msg_buf, timeout)
                 .await?
         }
         (false, false) => {

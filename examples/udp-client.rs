@@ -1,6 +1,6 @@
 use socks5_impl::{
     Result,
-    client::UdpClientImpl,
+    client::ClientWrapper,
     protocol::{ProxyParameters, ProxyType},
 };
 use std::{
@@ -55,9 +55,9 @@ async fn main() -> Result<()> {
         let proxy_parameters = opt.proxy_parameters.ok_or("proxy_parameters is required")?;
         let proxy_addr = std::net::SocketAddr::try_from(proxy_parameters.addr)?;
         let user_key = proxy_parameters.credentials.clone();
-        let data = UdpClientImpl::datagram(proxy_addr, opt.target_addr, user_key)
+        let data = ClientWrapper::datagram(proxy_addr, user_key)
             .await?
-            .transfer_data(opt.data.as_bytes(), timeout)
+            .transfer_data(opt.target_addr, opt.data.as_bytes(), timeout)
             .await?;
         println!("{}", std::str::from_utf8(data.as_slice())?);
     } else {
