@@ -1,6 +1,7 @@
 mod address;
 mod command;
 pub mod handshake;
+mod proxy_parameters;
 mod reply;
 mod request;
 mod response;
@@ -13,6 +14,7 @@ pub use self::{
         AuthMethod,
         password_method::{self, UserKey},
     },
+    proxy_parameters::{ProxyParameters, ProxyType},
     reply::Reply,
     request::Request,
     response::Response,

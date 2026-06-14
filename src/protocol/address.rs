@@ -51,6 +51,7 @@ impl From<AddressType> for u8 {
 /// +------+----------+----------+
 /// ```
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 pub enum Address {
     /// Represents an IPv4 or IPv6 socket address.
     SocketAddress(SocketAddr),
@@ -354,6 +355,14 @@ impl TryFrom<&str> for Address {
             let port = port.parse::<u16>()?;
             Ok(Address::DomainAddress(addr.into(), port))
         }
+    }
+}
+
+impl std::str::FromStr for Address {
+    type Err = crate::Error;
+
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        Self::try_from(s)
     }
 }
 

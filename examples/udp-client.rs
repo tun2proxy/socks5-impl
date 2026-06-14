@@ -1,4 +1,8 @@
-use socks5_impl::{Result, client::UdpClientImpl, protocol::UserKey};
+use socks5_impl::{
+    Result,
+    client::UdpClientImpl,
+    protocol::{ProxyParameters, ProxyType},
+};
 use std::{
     net::{SocketAddr, ToSocketAddrs},
     time::Duration,
@@ -18,20 +22,12 @@ pub struct CmdOpt {
     data: String,
 
     /// Via socks5 proxy server.
-    #[clap(short, long)]
+    #[clap(short, long, requires = "proxy_parameters")]
     via_proxy: bool,
 
-    /// Socket5 proxy server address.
-    #[clap(short, long, value_name = "addr:port")]
-    proxy_addr: Option<SocketAddr>,
-
-    /// User name for authentication.
-    #[clap(short, long, value_name = "user name")]
-    username: Option<String>,
-
-    /// Password for authentication.
-    #[clap(short = 'w', long, value_name = "password")]
-    password: Option<String>,
+    /// Socket5 proxy server parameters, likes `socks5://[user[:password]@]addr:port`
+    #[clap(short, long, value_name = "parameters")]
+    proxy_parameters: Option<ProxyParameters>,
 
     /// Timeout in seconds.
     #[clap(short = 'm', long, value_name = "seconds", default_value = "2")]
@@ -40,8 +36,10 @@ pub struct CmdOpt {
 
 impl CmdOpt {
     pub fn validate(&self) -> Result<(), String> {
-        if self.via_proxy && self.proxy_addr.is_none() {
-            return Err("proxy_addr is required when via_proxy is true".into());
+        if let Some(proxy_parameters) = &self.proxy_parameters
+            && proxy_parameters.proxy_type != ProxyType::Socks5
+        {
+            return Err("only socks5 proxy is supported".into());
         }
         Ok(())
     }
@@ -52,12 +50,17 @@ async fn main() -> Result<()> {
     let opt: CmdOpt = clap::Parser::parse();
     opt.validate()?;
 
-    let user_key = match (opt.username, opt.password) {
-        (Some(username), password) => Some(UserKey::new(username, password.unwrap_or_default())),
-        _ => None,
-    };
     let timeout = Duration::from_secs(opt.timeout);
-    if !opt.via_proxy {
+    if opt.via_proxy {
+        let proxy_parameters = opt.proxy_parameters.ok_or("proxy_parameters is required")?;
+        let proxy_addr = std::net::SocketAddr::try_from(proxy_parameters.addr)?;
+        let user_key = proxy_parameters.credentials.clone();
+        let data = UdpClientImpl::datagram(proxy_addr, opt.target_addr, user_key)
+            .await?
+            .transfer_data(opt.data.as_bytes(), timeout)
+            .await?;
+        println!("{}", std::str::from_utf8(data.as_slice())?);
+    } else {
         let target_addr = opt.target_addr.to_socket_addrs()?.next().ok_or("invalid address")?;
         let zero_addr = if target_addr.is_ipv4() { "0.0.0.0:0" } else { "[::]:0" };
         let zero_addr = zero_addr.to_socket_addrs()?.next().ok_or("invalid address")?;
@@ -68,13 +71,6 @@ async fn main() -> Result<()> {
         let (len, _) = tokio::time::timeout(timeout, udp.recv_from(&mut buf)).await??;
 
         println!("{}", std::str::from_utf8(&buf[..len])?);
-    } else {
-        let proxy_addr = opt.proxy_addr.ok_or("proxy_addr is required")?;
-        let data = UdpClientImpl::datagram(proxy_addr, opt.target_addr, user_key)
-            .await?
-            .transfer_data(opt.data.as_bytes(), timeout)
-            .await?;
-        println!("{}", std::str::from_utf8(data.as_slice())?);
     }
     Ok(())
 }

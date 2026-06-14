@@ -10,7 +10,7 @@ pub const SUBNEGOTIATION_VERSION: u8 = 0x01;
 
 /// Required for a username + password authentication.
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
-#[derive(Default, Debug, Eq, PartialEq, Clone, Hash)]
+#[derive(Default, Debug, Eq, PartialEq, PartialOrd, Ord, Clone, Hash)]
 pub struct UserKey {
     pub username: String,
     pub password: String,
