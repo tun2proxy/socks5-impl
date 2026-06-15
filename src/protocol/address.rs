@@ -324,12 +324,21 @@ impl From<(IpAddr, u16)> for Address {
 
 impl From<(String, u16)> for Address {
     fn from((addr, port): (String, u16)) -> Self {
-        Address::DomainAddress(addr.into_boxed_str(), port)
+        Address::from((addr.as_str(), port))
+    }
+}
+
+impl From<(&String, u16)> for Address {
+    fn from((addr, port): (&String, u16)) -> Self {
+        Address::from((addr.as_str(), port))
     }
 }
 
 impl From<(&str, u16)> for Address {
     fn from((addr, port): (&str, u16)) -> Self {
+        if let Ok(addr) = addr.parse::<IpAddr>() {
+            return Address::SocketAddress(SocketAddr::from((addr, port)));
+        }
         Address::DomainAddress(addr.into(), port)
     }
 }
@@ -347,13 +356,19 @@ impl TryFrom<&str> for Address {
         if let Ok(addr) = addr.parse::<SocketAddr>() {
             Ok(Address::SocketAddress(addr))
         } else {
-            let (addr, port) = if let Some(pos) = addr.rfind(':') {
-                (&addr[..pos], &addr[pos + 1..])
-            } else {
-                (addr, "0")
+            if addr.matches(':').count() > 1 {
+                let err = format!("invalid socket address format: {addr}");
+                return Err(crate::Error::InvalidAddress(err));
+            }
+
+            let Some(pos) = addr.rfind(':') else {
+                let err = format!("missing port in address: {addr}");
+                return Err(crate::Error::InvalidAddress(err));
             };
+
+            let (addr, port) = (&addr[..pos], &addr[pos + 1..]);
             let port = port.parse::<u16>()?;
-            Ok(Address::DomainAddress(addr.into(), port))
+            Ok(Address::from((addr, port)))
         }
     }
 }
@@ -388,6 +403,20 @@ fn test_address() {
     assert_eq!(buf, vec![0x03, 0x07, b's', b'e', b'x', b'.', b'c', b'o', b'm', 0x1f, 0x90]);
     let addr2 = Address::retrieve_from_stream(&mut Cursor::new(&buf)).unwrap();
     assert_eq!(addr, addr2);
+
+    let addr = Address::try_from("example.com:8080").unwrap();
+    assert_eq!(addr.domain(), "example.com");
+    assert!(Address::try_from("example.com").is_err());
+
+    let addr = Address::try_from("123.45.67.89:8080").unwrap();
+    assert!(addr.is_ipv4());
+    assert!(Address::try_from("123.45.67.89").is_err());
+
+    let addr = Address::try_from("[2001:0db8:85a3:0000:0000:8a2e:0370:7334]:8080").unwrap();
+    assert_eq!(addr.domain(), "2001:db8:85a3::8a2e:370:7334");
+    assert!(addr.is_ipv6());
+
+    assert!(Address::try_from("2001:0db8:85a3:0000:0000:8a2e:0370:7334:8080").is_err());
 }
 
 #[cfg(feature = "tokio")]

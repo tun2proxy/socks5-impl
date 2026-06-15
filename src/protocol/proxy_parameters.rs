@@ -132,12 +132,54 @@ mod tests {
 
     #[test]
     fn parse_without_credentials() {
+        let parameters = "socks5://123.45.67.89:1080".parse::<ProxyParameters>().unwrap();
+        assert_eq!(parameters.proxy_type, ProxyType::Socks5);
+        assert_eq!(parameters.addr, ("123.45.67.89", 1080).into());
+        assert_eq!(parameters.addr.get_type(), crate::protocol::AddressType::IPv4);
+        assert_eq!(parameters.credentials, None);
+        assert_eq!(parameters.to_string(), "socks5://123.45.67.89:1080");
+
         let parameters = "socks5://proxy.example.com:1080".parse::<ProxyParameters>().unwrap();
 
         assert_eq!(parameters.proxy_type, ProxyType::Socks5);
         assert_eq!(parameters.addr, ("proxy.example.com", 1080).into());
         assert_eq!(parameters.credentials, None);
         assert_eq!(parameters.to_string(), "socks5://proxy.example.com:1080");
+
+        let parameters = "http://proxy.example.com:8080".parse::<ProxyParameters>().unwrap();
+        assert_eq!(parameters.proxy_type, ProxyType::Http);
+        assert_eq!(parameters.addr, ("proxy.example.com", 8080).into());
+        assert_eq!(parameters.credentials, None);
+        assert_eq!(parameters.to_string(), "http://proxy.example.com:8080");
+
+        let parameters = "http://proxy.example.com".parse::<ProxyParameters>().unwrap();
+        assert_eq!(parameters.proxy_type, ProxyType::Http);
+        assert_eq!(parameters.addr, ("proxy.example.com", 80).into());
+        assert_eq!(parameters.credentials, None);
+        assert_eq!(parameters.to_string(), "http://proxy.example.com:80");
+
+        assert!("socks5://proxy.example.com".parse::<ProxyParameters>().is_err());
+    }
+
+    #[test]
+    fn parse_with_credentials() {
+        let parameters = "socks5://user:password@proxy.example.com:1080".parse::<ProxyParameters>().unwrap();
+        assert_eq!(parameters.proxy_type, ProxyType::Socks5);
+        assert_eq!(parameters.addr, ("proxy.example.com", 1080).into());
+        assert_eq!(parameters.credentials, Some(UserKey::new("user", "password")));
+        assert_eq!(parameters.to_string(), "socks5://user:password@proxy.example.com:1080");
+
+        let parameters = "socks5://user@123.45.67.89:1080".parse::<ProxyParameters>().unwrap();
+        assert_eq!(parameters.proxy_type, ProxyType::Socks5);
+        assert_eq!(parameters.addr, ("123.45.67.89", 1080).into());
+        assert_eq!(parameters.credentials, Some(UserKey::new("user", "")));
+        assert_eq!(parameters.to_string(), "socks5://user@123.45.67.89:1080");
+
+        let parameters = "socks5://:password@123.45.67.89:1080".parse::<ProxyParameters>().unwrap();
+        assert_eq!(parameters.proxy_type, ProxyType::Socks5);
+        assert_eq!(parameters.addr, ("123.45.67.89", 1080).into());
+        assert_eq!(parameters.credentials, Some(UserKey::new("", "password")));
+        assert_eq!(parameters.to_string(), "socks5://:password@123.45.67.89:1080");
     }
 
     #[test]
