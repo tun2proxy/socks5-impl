@@ -1,6 +1,6 @@
 use socks5_impl::{
     Error, Result,
-    protocol::{Address, Reply, UdpHeader},
+    protocol::{Address, ProxyParameters, ProxyType, Reply, UdpHeader},
     server::{AssociatedUdpSocket, ClientConnection, IncomingConnection, Server, UdpAssociate, auth, connection::associate},
 };
 use std::{
@@ -18,21 +18,13 @@ use tokio_util::sync::CancellationToken;
 #[derive(clap::Parser, Debug, Clone, PartialEq, Eq)]
 #[command(author, version, about = "Simple socks5 proxy server.", long_about = None)]
 pub struct CmdOpt {
-    /// Socks5 server listen address.
-    #[clap(short, long, value_name = "address:port", default_value = "127.0.0.1:1080")]
-    listen_addr: SocketAddr,
+    /// Socks5 server listen parameters, likes `socks5://[user[:password]@]addr:port`
+    #[clap(short, long, value_name = "url", default_value = "socks5://127.0.0.1:1080")]
+    listen_parameters: ProxyParameters,
 
     /// Public IP address advertised in UDP ASSOCIATE replies.
-    #[clap(long, value_name = "ip")]
+    #[clap(short, long, value_name = "ip")]
     advertise_ip: Option<IpAddr>,
-
-    /// Username for socks5 authentication.
-    #[clap(short, long, value_name = "username")]
-    username: Option<String>,
-
-    /// Password for socks5 authentication.
-    #[clap(short, long, value_name = "password")]
-    password: Option<String>,
 
     /// Verbosity level
     #[arg(short, long, value_name = "level", value_enum, default_value = "info")]
@@ -70,16 +62,20 @@ async fn main() -> Result<()> {
         true
     })?;
 
-    match (opt.username, opt.password) {
-        (Some(username), password) => {
-            let password = password.unwrap_or_default();
-            let auth = Arc::new(auth::UserKeyAuth::new(&username, &password));
-            main_loop(auth, opt.listen_addr, opt.advertise_ip, token).await?;
-        }
-        _ => {
-            let auth = Arc::new(auth::NoAuth);
-            main_loop(auth, opt.listen_addr, opt.advertise_ip, token).await?;
-        }
+    if opt.listen_parameters.proxy_type != ProxyType::Socks5 {
+        return Err("only socks5 proxy is supported".into());
+    }
+
+    let listen_addr: SocketAddr = opt.listen_parameters.addr.try_into()?;
+
+    if let Some(au) = &opt.listen_parameters.credentials
+        && !au.username.is_empty()
+    {
+        let auth = Arc::new(auth::UserKeyAuth::new(&au.username, &au.password));
+        main_loop(auth, listen_addr, opt.advertise_ip, token).await?;
+    } else {
+        let auth = Arc::new(auth::NoAuth);
+        main_loop(auth, listen_addr, opt.advertise_ip, token).await?;
     }
 
     ctrlc.await?;

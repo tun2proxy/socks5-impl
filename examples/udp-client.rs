@@ -21,13 +21,9 @@ pub struct CmdOpt {
     #[clap(short, long, value_name = "data")]
     data: String,
 
-    /// Via socks5 proxy server.
-    #[clap(short, long, requires = "proxy_parameters")]
-    via_proxy: bool,
-
-    /// Socket5 proxy server parameters, likes `socks5://[user[:password]@]addr:port`
+    /// Via socks5 proxy server, the parameters like `socks5://[user[:password]@]addr:port`
     #[clap(short, long, value_name = "parameters")]
-    proxy_parameters: Option<ProxyParameters>,
+    via_proxy: Option<ProxyParameters>,
 
     /// Timeout in seconds.
     #[clap(short = 'm', long, value_name = "seconds", default_value = "2")]
@@ -36,7 +32,7 @@ pub struct CmdOpt {
 
 impl CmdOpt {
     pub fn validate(&self) -> Result<(), String> {
-        if let Some(proxy_parameters) = &self.proxy_parameters
+        if let Some(proxy_parameters) = &self.via_proxy
             && proxy_parameters.proxy_type != ProxyType::Socks5
         {
             return Err("only socks5 proxy is supported".into());
@@ -51,8 +47,7 @@ async fn main() -> Result<()> {
     opt.validate()?;
 
     let timeout = Duration::from_secs(opt.timeout);
-    if opt.via_proxy {
-        let proxy_parameters = opt.proxy_parameters.ok_or("proxy_parameters is required")?;
+    if let Some(proxy_parameters) = opt.via_proxy {
         let proxy_addr = std::net::SocketAddr::try_from(proxy_parameters.addr)?;
         let user_key = proxy_parameters.credentials.clone();
         let data = ClientWrapper::datagram(proxy_addr, user_key)

@@ -1,7 +1,10 @@
 mod util;
 
 use hickory_proto::rr::RecordType;
-use socks5_impl::{Result, client, protocol::UserKey};
+use socks5_impl::{
+    Result, client,
+    protocol::{ProxyParameters, ProxyType},
+};
 use std::{net::SocketAddr, time::Duration};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
@@ -21,21 +24,9 @@ pub struct CmdOpt {
     #[clap(short, long, value_name = "domain name")]
     domain: String,
 
-    /// Via socks5 proxy.
+    /// Via socks5 proxy server, the parameters like `socks5://[user[:password]@]addr:port`
     #[clap(short, long, value_name = "via proxy", default_value = "false")]
-    via_proxy: bool,
-
-    /// Socks5 proxy server address.
-    #[clap(short, long, value_name = "address:port")]
-    proxy_addr: Option<SocketAddr>,
-
-    /// User name for SOCKS5 authentication.
-    #[clap(short, long, value_name = "user name")]
-    username: Option<String>,
-
-    /// Password for SOCKS5 authentication.
-    #[clap(short = 'w', long, value_name = "password")]
-    password: Option<String>,
+    via_proxy: Option<ProxyParameters>,
 
     /// Use TCP protocol.
     #[clap(short, long, value_name = "tcp", default_value = "false")]
@@ -48,8 +39,10 @@ pub struct CmdOpt {
 
 impl CmdOpt {
     pub fn validate(&self) -> Result<(), String> {
-        if self.via_proxy && self.proxy_addr.is_none() {
-            return Err("proxy_addr is required when via_proxy is true".into());
+        if let Some(proxy_parameters) = &self.via_proxy
+            && proxy_parameters.proxy_type != ProxyType::Socks5
+        {
+            return Err("only socks5 proxy is supported".into());
         }
         Ok(())
     }
@@ -81,16 +74,13 @@ async fn main() -> Result<()> {
 }
 
 async fn dns_query_from_server(opt: &CmdOpt, msg_buf: &[u8]) -> Result<Vec<u8>> {
-    let user_key = match (&opt.username, &opt.password) {
-        (Some(username), Some(password)) => Some(UserKey::new(username, password)),
-        _ => None,
-    };
     let timeout = Duration::from_secs(opt.timeout);
-    let buf = match (opt.tcp, opt.via_proxy) {
-        (true, true) => {
-            let proxy = TcpStream::connect(opt.proxy_addr.as_ref().unwrap()).await?;
+    let buf = match (opt.tcp, opt.via_proxy.clone()) {
+        (true, Some(proxy_parameters)) => {
+            let proxy_addr: SocketAddr = proxy_parameters.addr.try_into()?;
+            let proxy = TcpStream::connect(proxy_addr).await?;
             let mut stream = tokio::io::BufStream::new(proxy);
-            let addr = client::connect(&mut stream, &opt.remote_dns_server, user_key).await?;
+            let addr = client::connect(&mut stream, &opt.remote_dns_server, proxy_parameters.credentials).await?;
             log::trace!("connected {addr}");
 
             // write dns request
@@ -104,7 +94,7 @@ async fn dns_query_from_server(opt: &CmdOpt, msg_buf: &[u8]) -> Result<Vec<u8>> 
             buf.truncate(n);
             buf
         }
-        (true, false) => {
+        (true, None) => {
             let mut stream = TcpStream::connect(&opt.remote_dns_server).await?;
             stream.write_all(msg_buf).await?;
             stream.flush().await?;
@@ -113,15 +103,16 @@ async fn dns_query_from_server(opt: &CmdOpt, msg_buf: &[u8]) -> Result<Vec<u8>> 
             buf.truncate(n);
             buf
         }
-        (false, true) => {
-            let proxy_addr = *opt.proxy_addr.as_ref().unwrap();
+        (false, Some(proxy_parameters)) => {
+            let proxy_addr: SocketAddr = proxy_parameters.addr.try_into()?;
+            let user_key = proxy_parameters.credentials;
             let udp_server_addr = opt.remote_dns_server;
             client::ClientWrapper::datagram(proxy_addr, user_key)
                 .await?
                 .transfer_data(udp_server_addr, msg_buf, timeout)
                 .await?
         }
-        (false, false) => {
+        (false, None) => {
             let client_addr = if opt.remote_dns_server.is_ipv4() { "0.0.0.0:0" } else { "[::]:0" };
             let client = tokio::net::UdpSocket::bind(client_addr).await?;
             client.send_to(msg_buf, &opt.remote_dns_server).await?;
