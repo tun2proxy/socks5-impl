@@ -55,8 +55,21 @@ impl AuthExecutor for NoAuth {
 }
 
 /// Username and password as the socks5 handshake method.
+#[derive(Debug, Clone)]
 pub struct UserKeyAuth {
     user_key: UserKey,
+}
+
+impl From<UserKey> for UserKeyAuth {
+    fn from(user_key: UserKey) -> Self {
+        Self { user_key }
+    }
+}
+
+impl From<(&str, &str)> for UserKeyAuth {
+    fn from(value: (&str, &str)) -> Self {
+        Self::new(value.0, value.1)
+    }
 }
 
 impl UserKeyAuth {
