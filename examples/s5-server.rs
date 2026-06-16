@@ -68,30 +68,21 @@ async fn main() -> Result<()> {
 
     let listen_addr: SocketAddr = opt.listen_parameters.addr.try_into()?;
 
-    if let Some(au) = &opt.listen_parameters.credentials
+    let auth: auth::AuthAdaptor = if let Some(au) = &opt.listen_parameters.credentials
         && !au.username.is_empty()
     {
-        let auth = Arc::new(auth::UserKeyAuth::new(&au.username, &au.password));
-        main_loop(auth, listen_addr, opt.advertise_ip, token).await?;
+        Arc::new(auth::UserKeyAuth::from(au))
     } else {
-        let auth = Arc::new(auth::NoAuth);
-        main_loop(auth, listen_addr, opt.advertise_ip, token).await?;
-    }
+        Arc::new(auth::NoAuth)
+    };
+    main_loop(auth, listen_addr, opt.advertise_ip, token).await?;
 
     ctrlc.await?;
 
     Ok(())
 }
 
-async fn main_loop<S>(
-    auth: auth::AuthAdaptor<S>,
-    listen_addr: SocketAddr,
-    advertise_ip: Option<IpAddr>,
-    token: CancellationToken,
-) -> Result<()>
-where
-    S: Send + Sync + 'static,
-{
+async fn main_loop(auth: auth::AuthAdaptor, listen_addr: SocketAddr, advertise_ip: Option<IpAddr>, token: CancellationToken) -> Result<()> {
     let server = Server::bind(listen_addr, auth).await?;
 
     loop {
@@ -111,21 +102,8 @@ where
     Ok(())
 }
 
-async fn handle<S>(conn: IncomingConnection<S>, advertise_ip: Option<IpAddr>) -> Result<()>
-where
-    S: Send + Sync + 'static,
-{
-    let (conn, res) = conn.authenticate().await?;
-
-    use std::any::Any;
-    let res = &res as &dyn Any;
-    if let Some(res) = res.downcast_ref::<std::io::Result<bool>>() {
-        let res = *res.as_ref().map_err(|err| err.to_string())?;
-        if !res {
-            log::info!("authentication failed");
-            return Ok(());
-        }
-    }
+async fn handle(conn: IncomingConnection, advertise_ip: Option<IpAddr>) -> Result<()> {
+    let conn = conn.authenticate().await?;
 
     match conn.wait_request().await? {
         ClientConnection::UdpAssociate(associate, _) => {

@@ -23,25 +23,25 @@ pub use crate::{
 ///
 /// The authentication method can be configured with the
 /// [`AuthExecutor`] trait.
-pub struct Server<O> {
+pub struct Server {
     listener: TcpListener,
-    auth: AuthAdaptor<O>,
+    auth: AuthAdaptor,
 }
 
-impl<O: 'static> Server<O> {
+impl Server {
     /// Create a new socks5 server with the given TCP listener and authentication method.
     #[inline]
-    pub fn new(listener: TcpListener, auth: AuthAdaptor<O>) -> Self {
+    pub fn new(listener: TcpListener, auth: AuthAdaptor) -> Self {
         Self { listener, auth }
     }
 
     /// Create a new socks5 server on the given socket address and authentication method.
     #[inline]
-    pub async fn bind(addr: SocketAddr, auth: AuthAdaptor<O>) -> std::io::Result<Self> {
+    pub async fn bind(addr: SocketAddr, auth: AuthAdaptor) -> std::io::Result<Self> {
         Self::bind_with_backlog(addr, auth, 1024).await
     }
 
-    pub async fn bind_with_backlog(addr: SocketAddr, auth: AuthAdaptor<O>, backlog: u32) -> std::io::Result<Self> {
+    pub async fn bind_with_backlog(addr: SocketAddr, auth: AuthAdaptor, backlog: u32) -> std::io::Result<Self> {
         let socket = if addr.is_ipv4() {
             tokio::net::TcpSocket::new_v4()?
         } else {
@@ -58,12 +58,12 @@ impl<O: 'static> Server<O> {
     /// [`IncomingConnection::authenticate`](crate::server::connection::IncomingConnection::authenticate)
     /// to hand-shake it into a proper socks5 connection.
     #[inline]
-    pub async fn accept(&self) -> std::io::Result<(IncomingConnection<O>, SocketAddr)> {
+    pub async fn accept(&self) -> std::io::Result<(IncomingConnection, SocketAddr)> {
         let (stream, addr) = self.listener.accept().await?;
         Ok((IncomingConnection::new(stream, self.auth.clone()), addr))
     }
 
-    /// Polls to accept an [`IncomingConnection<O>`](crate::server::connection::IncomingConnection).
+    /// Polls to accept an [`IncomingConnection`](crate::server::connection::IncomingConnection).
     ///
     /// The connection is only a freshly created TCP connection and may not be a valid SOCKS5 connection.
     /// You should call
@@ -73,7 +73,7 @@ impl<O: 'static> Server<O> {
     /// If there is no connection to accept, Poll::Pending is returned and the current task will be notified by a waker.
     /// Note that on multiple calls to poll_accept, only the Waker from the Context passed to the most recent call is scheduled to receive a wakeup.
     #[inline]
-    pub fn poll_accept(&self, cx: &mut Context<'_>) -> Poll<std::io::Result<(IncomingConnection<O>, SocketAddr)>> {
+    pub fn poll_accept(&self, cx: &mut Context<'_>) -> Poll<std::io::Result<(IncomingConnection, SocketAddr)>> {
         self.listener
             .poll_accept(cx)
             .map_ok(|(stream, addr)| (IncomingConnection::new(stream, self.auth.clone()), addr))
@@ -86,16 +86,16 @@ impl<O: 'static> Server<O> {
     }
 }
 
-impl<O> From<(TcpListener, AuthAdaptor<O>)> for Server<O> {
+impl From<(TcpListener, AuthAdaptor)> for Server {
     #[inline]
-    fn from((listener, auth): (TcpListener, AuthAdaptor<O>)) -> Self {
+    fn from((listener, auth): (TcpListener, AuthAdaptor)) -> Self {
         Self { listener, auth }
     }
 }
 
-impl<O> From<Server<O>> for (TcpListener, AuthAdaptor<O>) {
+impl From<Server> for (TcpListener, AuthAdaptor) {
     #[inline]
-    fn from(server: Server<O>) -> Self {
+    fn from(server: Server) -> Self {
         (server.listener, server.auth)
     }
 }

@@ -22,48 +22,66 @@ This repo hosts at [socks5-impl](https://github.com/ssrlive/socks5-impl/tree/mas
 
 ## Usage
 
-The entry point of this crate is [`socks5_impl::server::Server`](crate::server::Server).
+The entry point of this crate is [`socks5_impl::server::Server`](src/server/mod.rs).
 
 Check [examples](https://github.com/ssrlive/socks5-impl/tree/master/examples) for usage examples.
 
 ## Example
 
+This example uses the `server` feature. When that feature is disabled, the doctest still compiles with an empty fallback `main`.
+
 ```rust no_run
-use socks5_impl::protocol::{handshake, Address, AuthMethod, Reply, Request, Response, StreamOperation};
+#[cfg(feature = "server")]
+use std::{net::SocketAddr, sync::Arc};
+#[cfg(feature = "server")]
+use socks5_impl::{
+    Result,
+    protocol::{Address, Reply},
+    server::{auth, ClientConnection, IncomingConnection, Server},
+};
 
-fn main() -> socks5_impl::Result<()> {
-    let listener = std::net::TcpListener::bind("127.0.0.1:5000")?;
-    let (mut stream, _) = listener.accept()?;
+#[cfg(feature = "server")]
+#[tokio::main]
+async fn main() -> Result<()> {
+    let listen_addr: SocketAddr = "127.0.0.1:5000".parse()?;
+    let auth = Arc::new(auth::NoAuth);
+    let server = Server::bind(listen_addr, auth).await?;
 
-    let request = handshake::Request::retrieve_from_stream(&mut stream)?;
-
-    if request.evaluate_method(AuthMethod::NoAuth) {
-        let response = handshake::Response::new(AuthMethod::NoAuth);
-        response.write_to_stream(&mut stream)?;
-    } else {
-        let response = handshake::Response::new(AuthMethod::NoAcceptableMethods);
-        response.write_to_stream(&mut stream)?;
-        let _ = stream.shutdown(std::net::Shutdown::Both);
-        let err = "No available handshake method provided by client";
-        return Err(std::io::Error::new(std::io::ErrorKind::Unsupported, err).into());
+    loop {
+        let (conn, _) = server.accept().await?;
+        tokio::spawn(async move {
+            if let Err(err) = handle(conn).await {
+                eprintln!("{err}");
+            }
+        });
     }
+}
 
-    let req = match Request::retrieve_from_stream(&mut stream) {
-        Ok(req) => req,
-        Err(err) => {
-            let resp = Response::new(Reply::GeneralFailure, Address::unspecified());
-            resp.write_to_stream(&mut stream)?;
-            let _ = stream.shutdown(std::net::Shutdown::Both);
-            return Err(err.into());
+#[cfg(feature = "server")]
+async fn handle(conn: IncomingConnection) -> Result<()> {
+    let conn = conn.authenticate().await?;
+
+    match conn.wait_request().await? {
+        ClientConnection::Connect(connect, addr) => {
+            let mut conn = connect.reply(Reply::Succeeded, Address::unspecified()).await?;
+            let _ = addr;
+            conn.shutdown().await?;
         }
-    };
-
-    match req.command {
-        _ => {} // process request
+        ClientConnection::Bind(bind, _) => {
+            let mut conn = bind.reply(Reply::CommandNotSupported, Address::unspecified()).await?;
+            conn.shutdown().await?;
+        }
+        ClientConnection::UdpAssociate(associate, _) => {
+            let mut conn = associate.reply(Reply::CommandNotSupported, Address::unspecified()).await?;
+            conn.shutdown().await?;
+        }
     }
 
     Ok(())
 }
+
+#[cfg(not(feature = "server"))]
+fn main() {}
 ```
 
 ## License

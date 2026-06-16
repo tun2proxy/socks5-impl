@@ -12,14 +12,14 @@ pub mod connect;
 
 /// An incoming connection. This may not be a valid socks5 connection. You need to call [`authenticate()`](#method.authenticate)
 /// to perform the socks5 handshake. It will be converted to a proper socks5 connection after the handshake succeeds.
-pub struct IncomingConnection<O> {
+pub struct IncomingConnection {
     stream: TcpStream,
-    auth: AuthAdaptor<O>,
+    auth: AuthAdaptor,
 }
 
-impl<O: 'static> IncomingConnection<O> {
+impl IncomingConnection {
     #[inline]
-    pub(crate) fn new(stream: TcpStream, auth: AuthAdaptor<O>) -> Self {
+    pub(crate) fn new(stream: TcpStream, auth: AuthAdaptor) -> Self {
         IncomingConnection { stream, auth }
     }
 
@@ -75,7 +75,7 @@ impl<O: 'static> IncomingConnection<O> {
     }
 
     /// Set a timeout for the SOCKS5 handshake.
-    pub async fn authenticate_with_timeout(self, timeout: Duration) -> crate::Result<(Authenticated, O)> {
+    pub async fn authenticate_with_timeout(self, timeout: Duration) -> crate::Result<Authenticated> {
         tokio::time::timeout(timeout, self.authenticate())
             .await
             .map_err(|_| crate::Error::String("handshake timeout".into()))?
@@ -84,18 +84,20 @@ impl<O: 'static> IncomingConnection<O> {
     /// Perform a SOCKS5 authentication handshake using the given
     /// [`AuthExecutor`](crate::server::auth::AuthExecutor) adapter.
     ///
-    /// If the handshake succeeds, an [`Authenticated`]
-    /// alongs with the output of the [`AuthExecutor`](crate::server::auth::AuthExecutor) adapter is returned.
+    /// If the handshake succeeds, an [`Authenticated`] stream is returned.
     /// Otherwise, the error and the original [`TcpStream`](https://docs.rs/tokio/latest/tokio/net/struct.TcpStream.html) is returned.
     ///
     /// Note that this method will not implicitly close the connection even if the handshake failed.
-    pub async fn authenticate(mut self) -> crate::Result<(Authenticated, O)> {
+    pub async fn authenticate(mut self) -> crate::Result<Authenticated> {
         let request = handshake::Request::retrieve_from_async_stream(&mut self.stream).await?;
         if let Some(method) = self.evaluate_request(&request) {
             let response = handshake::Response::new(method);
             response.write_to_async_stream(&mut self.stream).await?;
-            let output = self.auth.execute(&mut self.stream).await;
-            Ok((Authenticated::new(self.stream), output))
+            if !self.auth.execute(&mut self.stream).await? {
+                use std::io::{Error, ErrorKind::PermissionDenied};
+                return Err(crate::Error::Io(Error::new(PermissionDenied, "authentication failed")));
+            }
+            Ok(Authenticated::new(self.stream))
         } else {
             let response = handshake::Response::new(AuthMethod::NoAcceptableMethods);
             response.write_to_async_stream(&mut self.stream).await?;
@@ -110,15 +112,15 @@ impl<O: 'static> IncomingConnection<O> {
     }
 }
 
-impl<O> std::fmt::Debug for IncomingConnection<O> {
+impl std::fmt::Debug for IncomingConnection {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("IncomingConnection").field("stream", &self.stream).finish()
     }
 }
 
-impl<O> From<IncomingConnection<O>> for TcpStream {
+impl From<IncomingConnection> for TcpStream {
     #[inline]
-    fn from(conn: IncomingConnection<O>) -> Self {
+    fn from(conn: IncomingConnection) -> Self {
         conn.stream
     }
 }

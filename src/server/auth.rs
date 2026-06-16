@@ -19,26 +19,23 @@ use tokio::net::TcpStream;
 ///
 /// #[async_trait::async_trait]
 /// impl AuthExecutor for MyAuth {
-///     type Output = std::io::Result<usize>;
-///
 ///     fn auth_method(&self) -> AuthMethod {
 ///         AuthMethod::from(0x80)
 ///     }
 ///
-///     async fn execute(&self, stream: &mut TcpStream) -> Self::Output {
+///     async fn execute(&self, stream: &mut TcpStream) -> std::io::Result<bool> {
 ///         // do something
-///         Ok(1145141919810)
+///         Ok(true)
 ///     }
 /// }
 /// ```
 #[async_trait::async_trait]
 pub trait AuthExecutor {
-    type Output;
     fn auth_method(&self) -> AuthMethod;
-    async fn execute(&self, stream: &mut TcpStream) -> Self::Output;
+    async fn execute(&self, stream: &mut TcpStream) -> std::io::Result<bool>;
 }
 
-pub type AuthAdaptor<O> = Arc<dyn AuthExecutor<Output = O> + Send + Sync>;
+pub type AuthAdaptor = Arc<dyn AuthExecutor + Send + Sync>;
 
 /// No authentication as the socks5 handshake method.
 #[derive(Debug, Default)]
@@ -46,12 +43,13 @@ pub struct NoAuth;
 
 #[async_trait::async_trait]
 impl AuthExecutor for NoAuth {
-    type Output = ();
     fn auth_method(&self) -> AuthMethod {
         AuthMethod::NoAuth
     }
 
-    async fn execute(&self, _: &mut TcpStream) -> Self::Output {}
+    async fn execute(&self, _: &mut TcpStream) -> std::io::Result<bool> {
+        Ok(true)
+    }
 }
 
 /// Username and password as the socks5 handshake method.
@@ -63,6 +61,12 @@ pub struct UserKeyAuth {
 impl From<UserKey> for UserKeyAuth {
     fn from(user_key: UserKey) -> Self {
         Self { user_key }
+    }
+}
+
+impl From<&UserKey> for UserKeyAuth {
+    fn from(value: &UserKey) -> Self {
+        Self { user_key: value.clone() }
     }
 }
 
@@ -81,13 +85,11 @@ impl UserKeyAuth {
 
 #[async_trait::async_trait]
 impl AuthExecutor for UserKeyAuth {
-    type Output = std::io::Result<bool>;
-
     fn auth_method(&self) -> AuthMethod {
         AuthMethod::UserPass
     }
 
-    async fn execute(&self, stream: &mut TcpStream) -> Self::Output {
+    async fn execute(&self, stream: &mut TcpStream) -> std::io::Result<bool> {
         use password_method::{Request, Response, Status::*};
         let req = Request::retrieve_from_async_stream(stream).await?;
 
