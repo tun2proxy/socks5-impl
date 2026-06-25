@@ -1,14 +1,14 @@
 use crate::protocol::{Address, AsyncStreamOperation, Reply, Response};
 use std::{
     marker::PhantomData,
-    net::SocketAddr,
+    net::{SocketAddr, ToSocketAddrs},
     pin::Pin,
     task::{Context, Poll},
 };
 use tokio::{
     io::{AsyncRead, AsyncWrite, AsyncWriteExt, ReadBuf},
     net::{
-        TcpStream,
+        TcpListener, TcpStream,
         tcp::{ReadHalf, WriteHalf},
     },
 };
@@ -56,6 +56,42 @@ impl Bind<NeedFirstReply> {
         let resp = Response::new(reply, addr);
         resp.write_to_async_stream(&mut self.stream).await?;
         Ok(Bind::<NeedSecondReply>::new(self.stream))
+    }
+
+    /// Accept an incoming connection for SOCKS5 BIND.
+    ///
+    /// This binds a TCP listener to the requested `bind_addr`, sends the first BIND
+    /// reply with the actual bound address, then waits for the remote peer to connect.
+    /// The returned `Bind<NeedSecondReply>` can be used to send the second reply.
+    pub async fn accept(self, bind_addr: Address) -> std::io::Result<(Bind<NeedSecondReply>, TcpStream)> {
+        let bind_addr = bind_addr
+            .to_socket_addrs()?
+            .next()
+            .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidInput, "invalid bind address"))?;
+
+        let listener = match TcpListener::bind(bind_addr).await {
+            Ok(listener) => listener,
+            Err(err) => {
+                let _ = self.reply(Reply::GeneralFailure, Address::unspecified()).await;
+                return Err(err);
+            }
+        };
+
+        let local_addr = listener.local_addr()?;
+        let bind = self.reply(Reply::Succeeded, Address::from(local_addr)).await?;
+        let (incoming, _) = listener.accept().await?;
+        Ok((bind, incoming))
+    }
+
+    /// Fully complete BIND handling, including first reply, accept, and second reply.
+    pub async fn bind(self, bind_addr: Address) -> std::io::Result<(Bind<Ready>, TcpStream)> {
+        let (bind, incoming) = self.accept(bind_addr).await?;
+        let remote_addr = incoming.peer_addr()?;
+        let conn = match bind.reply(Reply::Succeeded, Address::from(remote_addr)).await {
+            Ok(conn) => conn,
+            Err((err, _stream)) => return Err(err),
+        };
+        Ok((conn, incoming))
     }
 
     /// Causes the other peer to receive a read of length 0, indicating that no more data will be sent. This only closes the stream in one direction.

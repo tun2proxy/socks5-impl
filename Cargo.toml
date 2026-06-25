@@ -22,7 +22,7 @@ tokio = ["dep:tokio", "async-trait"]
 
 [dependencies]
 async-trait = { version = "0.1.89", optional = true }
-bytes = "1.11.1"
+bytes = "1.12.0"
 percent-encoding = "2.3.2"
 serde = { version = "1.0.228", features = ["derive"], optional = true }
 thiserror = "2.0.18"
@@ -41,7 +41,7 @@ ctrlc2 = { version = "4.0.0", features = ["async", "termination"] }
 dotenvy = "0.15.7"
 env_logger = "0.11.10"
 hickory-proto = "0.26.1"
-log = "0.4.32"
+log = "0.4.33"
 moka = { version = "0.12.15", features = ["future"] }
 rand = "0.10.1"
 tokio = { version = "1.52.3", features = ["rt-multi-thread"] }

@@ -109,9 +109,9 @@ async fn handle(conn: IncomingConnection, advertise_ip: Option<IpAddr>) -> Resul
         ClientConnection::UdpAssociate(associate, _) => {
             handle_s5_upd_associate(associate, advertise_ip).await?;
         }
-        ClientConnection::Bind(bind, _) => {
-            let mut conn = bind.reply(Reply::CommandNotSupported, Address::unspecified()).await?;
-            conn.shutdown().await?;
+        ClientConnection::Bind(bind, addr) => {
+            let (mut conn, mut incoming) = bind.bind(addr).await?;
+            io::copy_bidirectional(&mut incoming, &mut conn).await?;
         }
         ClientConnection::Connect(connect, addr) => {
             let target = match addr {
