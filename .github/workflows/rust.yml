@@ -4,10 +4,10 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - '**'
+      - "**"
   pull_request:
     branches:
-      - '**'
+      - "**"
 
 env:
   CARGO_TERM_COLOR: always
@@ -23,25 +23,22 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-    - uses: actions/checkout@v7
-    - uses: dtolnay/rust-toolchain@stable
-    - name: rustfmt
-      run: cargo fmt --all -- --check
-    - name: check
-      if: ${{ !cancelled() }}
-      run: cargo check --verbose
-    - name: clippy
-      if: ${{ !cancelled() }}
-      run: cargo clippy --all-targets --all-features -- -D warnings
-    - name: Build
-      if: ${{ !cancelled() }}
-      run: cargo build --verbose
-    - name: Run tests
-      if: ${{ !cancelled() }}
-      run: cargo test --verbose --all-features
-    - name: Abort on error
-      if: ${{ failure() }}
-      run: echo "build_n_test failed" && false
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - name: rustfmt
+        run: cargo fmt --all -- --check
+      - name: check
+        if: ${{ !cancelled() }}
+        run: cargo check --verbose
+      - name: clippy
+        if: ${{ !cancelled() }}
+        run: cargo clippy --all-targets --all-features -- -D warnings
+      - name: Build
+        if: ${{ !cancelled() }}
+        run: cargo build --verbose
+      - name: Run tests
+        if: ${{ !cancelled() }}
+        run: cargo test --verbose --all-features
 
   semver:
     name: Check semver
@@ -56,6 +53,3 @@ jobs:
       - name: Check semver
         if: ${{ !cancelled() }}
         uses: obi1kenobi/cargo-semver-checks-action@v2
-      - name: Abort on error
-        if: ${{ failure() }}
-        run: echo "Semver check failed" && false
