@@ -59,6 +59,12 @@ pub enum Address {
     DomainAddress(Box<str>, u16),
 }
 
+impl Default for Address {
+    fn default() -> Self {
+        Address::unspecified()
+    }
+}
+
 impl Address {
     /// Returns an unspecified IPv4 address (0.0.0.0:0).
     pub fn unspecified() -> Self {
