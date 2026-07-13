@@ -2,11 +2,12 @@ use std::{
     net::SocketAddr,
     task::{Context, Poll},
 };
-use tokio::net::TcpListener;
+use tokio::net::{TcpListener, TcpStream};
 
 pub mod auth;
 pub mod connection;
 
+use crate::protocol::{AsyncStreamOperation, Request};
 pub use crate::{
     server::auth::{AuthAdaptor, AuthExecutor},
     server::connection::{
@@ -98,4 +99,28 @@ impl From<Server> for (TcpListener, AuthAdaptor) {
     fn from(server: Server) -> Self {
         (server.listener, server.auth)
     }
+}
+
+pub async fn socks5_service_handshake(mut stream: &mut TcpStream, auth: auth::AuthAdaptor) -> std::io::Result<Request> {
+    let request = crate::protocol::handshake::Request::retrieve_from_async_stream(&mut stream).await?;
+    let auth_method = auth.auth_method();
+    let supported = request.evaluate_method(auth_method);
+    let method = if supported {
+        auth_method
+    } else {
+        crate::protocol::AuthMethod::NoAcceptableMethods
+    };
+    let response = crate::protocol::handshake::Response::new(method);
+    response.write_to_async_stream(&mut stream).await?;
+
+    if !supported {
+        return Err(std::io::Error::other("no acceptable SOCKS5 authentication method"));
+    }
+
+    if !auth.execute(stream).await? {
+        return Err(std::io::Error::other("SOCKS5 authentication failed"));
+    }
+
+    let req = crate::protocol::Request::retrieve_from_async_stream(&mut stream).await?;
+    Ok(req)
 }
