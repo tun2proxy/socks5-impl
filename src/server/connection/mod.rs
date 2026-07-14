@@ -19,7 +19,7 @@ pub struct IncomingConnection {
 
 impl IncomingConnection {
     #[inline]
-    pub(crate) fn new(stream: TcpStream, auth: AuthAdaptor) -> Self {
+    pub fn new(stream: TcpStream, auth: AuthAdaptor) -> Self {
         IncomingConnection { stream, auth }
     }
 
