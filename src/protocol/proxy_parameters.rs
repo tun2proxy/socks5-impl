@@ -34,6 +34,30 @@ impl std::fmt::Display for ProxyParameters {
     }
 }
 
+impl ProxyParameters {
+    pub fn new(proxy_type: ProxyType, addr: Address, credentials: Option<UserKey>) -> Self {
+        ProxyParameters {
+            proxy_type,
+            addr,
+            credentials,
+        }
+    }
+}
+
+impl TryFrom<String> for ProxyParameters {
+    type Error = Error;
+    fn try_from(s: String) -> Result<Self> {
+        Self::try_from(s.as_str())
+    }
+}
+
+impl TryFrom<&String> for ProxyParameters {
+    type Error = Error;
+    fn try_from(s: &String) -> Result<Self> {
+        Self::try_from(s.as_str())
+    }
+}
+
 impl TryFrom<&str> for ProxyParameters {
     type Error = Error;
     fn try_from(s: &str) -> Result<Self> {
@@ -78,6 +102,51 @@ impl std::str::FromStr for ProxyParameters {
     type Err = Error;
     fn from_str(s: &str) -> Result<Self> {
         Self::try_from(s)
+    }
+}
+
+impl TryFrom<url::Url> for ProxyParameters {
+    type Error = Error;
+    fn try_from(url: url::Url) -> Result<Self> {
+        let e = format!("`{url}` does not contain a host");
+        let host = url.host_str().ok_or(Error::from(e))?;
+
+        let e = format!("`{url}` does not contain a port");
+        let port = url.port_or_known_default().ok_or(Error::from(&e))?;
+
+        let addr = (host, port).into();
+
+        let credentials = if url.username() == "" && url.password().is_none() {
+            None
+        } else {
+            use percent_encoding::percent_decode;
+            let username = percent_decode(url.username().as_bytes()).decode_utf8()?;
+            let password = percent_decode(url.password().unwrap_or("").as_bytes()).decode_utf8()?;
+            Some(UserKey::new(username, password))
+        };
+
+        let proxy_type = url.scheme().to_ascii_lowercase().as_str().try_into()?;
+
+        Ok(ProxyParameters {
+            proxy_type,
+            addr,
+            credentials,
+        })
+    }
+}
+
+impl TryFrom<ProxyParameters> for url::Url {
+    type Error = Error;
+    fn try_from(parameters: ProxyParameters) -> Result<Self> {
+        let mut url = url::Url::parse(&format!("{}://{}", parameters.proxy_type, parameters.addr))
+            .map_err(|e| Error::from(&format!("failed to parse proxy parameters into URL: {e}")))?;
+        if let Some(creds) = parameters.credentials {
+            url.set_username(&creds.username)
+                .map_err(|e| Error::from(&format!("failed to set username in proxy URL: {e:?}")))?;
+            url.set_password(Some(&creds.password))
+                .map_err(|e| Error::from(&format!("failed to set password in proxy URL: {e:?}")))?;
+        }
+        Ok(url)
     }
 }
 
@@ -208,5 +277,32 @@ mod tests {
     fn parse_invalid_proxy_type() {
         let err = "ftp://proxy.example.com:21".parse::<ProxyParameters>().unwrap_err();
         assert!(format!("{err}").contains("invalid proxy type"));
+    }
+
+    #[test]
+    fn try_from_string_and_url_work() {
+        let s = "http://proxy.example.com:8080".to_string();
+        let parameters = ProxyParameters::try_from(s.clone()).unwrap();
+        assert_eq!(parameters.proxy_type, ProxyType::Http);
+        assert_eq!(parameters.addr, ("proxy.example.com", 8080).into());
+        assert_eq!(parameters.to_string(), "http://proxy.example.com:8080");
+
+        let url = url::Url::parse(&s).unwrap();
+        let parameters = ProxyParameters::try_from(url).unwrap();
+        assert_eq!(parameters.proxy_type, ProxyType::Http);
+        assert_eq!(parameters.addr, ("proxy.example.com", 8080).into());
+    }
+
+    #[test]
+    fn proxy_parameters_new_and_into_url() {
+        let parameters = ProxyParameters::new(
+            ProxyType::Socks5,
+            ("proxy.example.com", 1080).into(),
+            Some(UserKey::new("user", "password")),
+        );
+
+        let url = url::Url::try_from(parameters.clone()).unwrap();
+        assert_eq!(url.as_str(), "socks5://user:password@proxy.example.com:1080");
+        assert_eq!(parameters.to_string(), "socks5://user:password@proxy.example.com:1080");
     }
 }

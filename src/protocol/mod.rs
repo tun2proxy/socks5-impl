@@ -20,7 +20,8 @@ pub use self::{
     response::Response,
     udp::UdpHeader,
 };
-pub use bytes::BufMut;
+pub use ::bytes::BufMut;
+pub use ::url::Url;
 
 #[cfg(feature = "tokio")]
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};

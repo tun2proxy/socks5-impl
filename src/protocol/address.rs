@@ -249,15 +249,12 @@ impl TryFrom<Address> for SocketAddr {
         match address {
             Address::SocketAddress(addr) => Ok(addr),
             Address::DomainAddress(addr, port) => {
-                if let Ok(addr) = addr.parse::<Ipv4Addr>() {
+                let addr = addr.as_ref();
+                if let Ok(addr) = addr.parse::<IpAddr>() {
                     Ok(SocketAddr::from((addr, port)))
-                } else if let Ok(addr) = addr.parse::<Ipv6Addr>() {
-                    Ok(SocketAddr::from((addr, port)))
-                } else if let Ok(addr) = addr.parse::<SocketAddr>() {
-                    Ok(addr)
                 } else {
-                    let err = format!("domain address {addr} is not supported");
-                    Err(Self::Error::new(std::io::ErrorKind::Unsupported, err))
+                    let err = format!("domain address {addr} cannot be converted to a SocketAddr without DNS, use ToSocketAddrs instead");
+                    Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, err))
                 }
             }
         }
@@ -423,6 +420,29 @@ fn test_address() {
     assert!(addr.is_ipv6());
 
     assert!(Address::try_from("2001:0db8:85a3:0000:0000:8a2e:0370:7334:8080").is_err());
+}
+
+#[test]
+fn test_try_from_address_for_socketaddr() {
+    let addr = Address::from((Ipv4Addr::new(127, 0, 0, 1), 8080));
+    let socket_addr = SocketAddr::try_from(addr.clone()).unwrap();
+    assert_eq!(socket_addr, SocketAddr::from(([127, 0, 0, 1], 8080)));
+
+    let addr = Address::from(("192.168.1.1", 8080));
+    let socket_addr = SocketAddr::try_from(addr).unwrap();
+    assert_eq!(socket_addr, SocketAddr::from(([192, 168, 1, 1], 8080)));
+
+    let addr = Address::from(("example.com", 8080));
+    let err = SocketAddr::try_from(addr).unwrap_err();
+    assert!(format!("{err}").contains("cannot be converted to a SocketAddr without DNS"));
+
+    let addr = Address::from(("baidu.com", 8080));
+    let err = SocketAddr::try_from(addr).unwrap_err();
+    assert!(format!("{err}").contains("cannot be converted to a SocketAddr without DNS"));
+
+    let addr = Address::from(("baidu.com", 8080));
+    let socket_addrs: Vec<SocketAddr> = addr.to_socket_addrs().unwrap().collect();
+    assert!(!socket_addrs.is_empty());
 }
 
 #[cfg(feature = "tokio")]
