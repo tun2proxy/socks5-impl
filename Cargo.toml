@@ -1,6 +1,6 @@
 [package]
 name = "socks5-impl"
-version = "0.9.4"
+version = "0.9.5"
 authors = ["ssrlive <ssrlivebox@gmail.com>"]
 description = "Fundamental abstractions and async read / write functions for SOCKS5 protocol and Relatively low-level asynchronized SOCKS5 server implementation based on tokio"
 categories = ["network-programming", "asynchronous"]
@@ -21,12 +21,12 @@ server = ["tokio"]
 tokio = ["dep:tokio", "async-trait"]
 
 [dependencies]
-async-trait = { version = "0.1.89", optional = true }
+async-trait = { version = "0.1.91", optional = true }
 bytes = "1.12.1"
 percent-encoding = "2.3.2"
-serde = { version = "1.0.228", features = ["derive"], optional = true }
-thiserror = "2.0.18"
-tokio = { version = "1.52.3", default-features = false, features = [
+serde = { version = "1.0.229", features = ["derive"], optional = true }
+thiserror = "2.0.19"
+tokio = { version = "1.53.1", default-features = false, features = [
     "net",
     "io-util",
     "time",
@@ -36,7 +36,7 @@ tokio = { version = "1.52.3", default-features = false, features = [
 url = "2.5.8"
 
 [dev-dependencies]
-clap = { version = "4.6.1", features = ["derive", "wrap_help"] }
+clap = { version = "4.6.5", features = ["derive", "wrap_help"] }
 ctrlc2 = { version = "4.0.0", features = ["async", "termination"] }
 dotenvy = "0.15.7"
 env_logger = "0.11.11"
@@ -44,8 +44,8 @@ hickory-proto = "0.26.1"
 log = "0.4.33"
 moka = { version = "0.12.15", features = ["future"] }
 rand = "0.10.2"
-tokio = { version = "1.52.3", features = ["rt-multi-thread"] }
-tokio-util = { version = "0.7.18", features = [] }
+tokio = { version = "1.53.1", features = ["rt-multi-thread"] }
+tokio-util = { version = "0.7.19", features = [] }
 
 [[example]]
 name = "demo-client"
