@@ -425,7 +425,16 @@ fn test_address() {
     assert_eq!(addr.host(), "2001:db8:85a3::8a2e:370:7334");
     assert!(addr.is_ipv6());
 
+    let addr = Address::from((Ipv6Addr::new(0x2001, 0xdb8, 0, 0, 0, 0, 0, 1), 8080));
+    assert_eq!(addr.host(), "2001:db8::1");
+
     assert!(Address::try_from("2001:0db8:85a3:0000:0000:8a2e:0370:7334:8080").is_err());
+}
+
+#[test]
+fn test_address_display_for_ipv6() {
+    let addr = Address::from((Ipv6Addr::new(0x2001, 0xdb8, 0, 0, 0, 0, 0, 1), 8080));
+    assert_eq!(addr.to_string(), "[2001:db8::1]:8080");
 }
 
 #[test]
