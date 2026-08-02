@@ -88,12 +88,18 @@ impl Address {
         }
     }
 
-    /// Returns the domain name or IP address as a string.
-    pub fn domain(&self) -> String {
+    /// Returns the host name or IP address as a string.
+    pub fn host(&self) -> String {
         match self {
             Self::SocketAddress(addr) => addr.ip().to_string(),
             Self::DomainAddress(addr, _) => addr.to_string(),
         }
+    }
+
+    /// Returns the host name or IP address as a string.
+    #[deprecated(note = "use host() instead")]
+    pub fn domain(&self) -> String {
+        self.host()
     }
 
     /// Returns `true` if it is an IPv4 address.
@@ -253,7 +259,7 @@ impl TryFrom<Address> for SocketAddr {
                 if let Ok(addr) = addr.parse::<IpAddr>() {
                     Ok(SocketAddr::from((addr, port)))
                 } else {
-                    let err = format!("domain address {addr} cannot be converted to a SocketAddr without DNS, use ToSocketAddrs instead");
+                    let err = format!("domain address {addr} cannot be converted to a SocketAddr without DNS, use to_socket_addrs instead");
                     Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, err))
                 }
             }
@@ -408,7 +414,7 @@ fn test_address() {
     assert_eq!(addr, addr2);
 
     let addr = Address::try_from("example.com:8080").unwrap();
-    assert_eq!(addr.domain(), "example.com");
+    assert_eq!(addr.host(), "example.com");
     assert!(Address::try_from("example.com").is_err());
 
     let addr = Address::try_from("123.45.67.89:8080").unwrap();
@@ -416,7 +422,7 @@ fn test_address() {
     assert!(Address::try_from("123.45.67.89").is_err());
 
     let addr = Address::try_from("[2001:0db8:85a3:0000:0000:8a2e:0370:7334]:8080").unwrap();
-    assert_eq!(addr.domain(), "2001:db8:85a3::8a2e:370:7334");
+    assert_eq!(addr.host(), "2001:db8:85a3::8a2e:370:7334");
     assert!(addr.is_ipv6());
 
     assert!(Address::try_from("2001:0db8:85a3:0000:0000:8a2e:0370:7334:8080").is_err());
