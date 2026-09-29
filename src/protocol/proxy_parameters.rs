@@ -154,21 +154,23 @@ impl TryFrom<ProxyParameters> for url::Url {
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Default, Hash)]
 pub enum ProxyType {
-    Http = 0,
+    None = 0,
+    Http,
     Socks4,
     #[default]
     Socks5,
-    None,
+    Mixed,
 }
 
 impl TryFrom<&str> for ProxyType {
     type Error = Error;
     fn try_from(value: &str) -> Result<Self> {
         match value.to_ascii_lowercase().as_str() {
+            "none" => Ok(ProxyType::None),
             "http" => Ok(ProxyType::Http),
             "socks4" => Ok(ProxyType::Socks4),
             "socks5" => Ok(ProxyType::Socks5),
-            "none" => Ok(ProxyType::None),
+            "mixed" => Ok(ProxyType::Mixed),
             scheme => Err(Error::from(&format!("`{scheme}` is an invalid proxy type"))),
         }
     }
@@ -177,10 +179,11 @@ impl TryFrom<&str> for ProxyType {
 impl std::fmt::Display for ProxyType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            ProxyType::None => write!(f, "none"),
             ProxyType::Socks4 => write!(f, "socks4"),
             ProxyType::Socks5 => write!(f, "socks5"),
             ProxyType::Http => write!(f, "http"),
-            ProxyType::None => write!(f, "none"),
+            ProxyType::Mixed => write!(f, "mixed"),
         }
     }
 }
