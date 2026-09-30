@@ -77,7 +77,7 @@ async fn dns_query_from_server(opt: &CmdOpt, msg_buf: &[u8]) -> Result<Vec<u8>> 
     let timeout = Duration::from_secs(opt.timeout);
     let buf = match (opt.tcp, opt.via_proxy.clone()) {
         (true, Some(proxy_parameters)) => {
-            let proxy_addr: SocketAddr = proxy_parameters.addr.try_into()?;
+            let proxy_addr: SocketAddr = proxy_parameters.addr.ok_or("proxy parameters require an address")?.try_into()?;
             let proxy = TcpStream::connect(proxy_addr).await?;
             let mut stream = tokio::io::BufStream::new(proxy);
             let addr = client::connect(&mut stream, &opt.remote_dns_server, proxy_parameters.credentials).await?;
@@ -104,7 +104,7 @@ async fn dns_query_from_server(opt: &CmdOpt, msg_buf: &[u8]) -> Result<Vec<u8>> 
             buf
         }
         (false, Some(proxy_parameters)) => {
-            let proxy_addr: SocketAddr = proxy_parameters.addr.try_into()?;
+            let proxy_addr: SocketAddr = proxy_parameters.addr.ok_or("proxy parameters require an address")?.try_into()?;
             let user_key = proxy_parameters.credentials;
             let udp_server_addr = opt.remote_dns_server;
             client::ClientWrapper::datagram(proxy_addr, user_key)

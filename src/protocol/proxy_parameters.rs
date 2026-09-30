@@ -3,9 +3,10 @@ use crate::{Error, Result};
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(feature = "serde", serde(try_from = "String", into = "String"))]
 pub struct ProxyParameters {
     pub proxy_type: ProxyType,
-    pub addr: Address,
+    pub addr: Option<Address>,
     #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
     pub credentials: Option<UserKey>,
 }
@@ -14,7 +15,7 @@ impl Default for ProxyParameters {
     fn default() -> Self {
         ProxyParameters {
             proxy_type: ProxyType::Socks5,
-            addr: "127.0.0.1:1080".parse().unwrap(),
+            addr: Some("127.0.0.1:1080".parse().unwrap()),
             credentials: None,
         }
     }
@@ -22,20 +23,36 @@ impl Default for ProxyParameters {
 
 impl std::fmt::Display for ProxyParameters {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if self.proxy_type == ProxyType::None || self.addr.is_none() {
+            return write!(f, "none");
+        }
+
         let auth = match &self.credentials {
             Some(creds) => format!("{creds}"),
             None => "".to_owned(),
         };
+        let addr = self.addr.as_ref().unwrap();
         if auth.is_empty() {
-            write!(f, "{}://{}", self.proxy_type, self.addr)
+            write!(f, "{}://{addr}", self.proxy_type)
         } else {
-            write!(f, "{}://{}@{}", self.proxy_type, auth, self.addr)
+            write!(f, "{}://{}@{addr}", self.proxy_type, auth)
+        }
+    }
+}
+
+#[cfg(feature = "serde")]
+impl From<ProxyParameters> for String {
+    fn from(parameters: ProxyParameters) -> Self {
+        if parameters.proxy_type == ProxyType::None {
+            "none".to_owned()
+        } else {
+            parameters.to_string()
         }
     }
 }
 
 impl ProxyParameters {
-    pub fn new(proxy_type: ProxyType, addr: Address, credentials: Option<UserKey>) -> Self {
+    pub fn new(proxy_type: ProxyType, addr: Option<Address>, credentials: Option<UserKey>) -> Self {
         ProxyParameters {
             proxy_type,
             addr,
@@ -64,7 +81,7 @@ impl TryFrom<&str> for ProxyParameters {
         if s == "none" {
             return Ok(ProxyParameters {
                 proxy_type: ProxyType::None,
-                addr: "0.0.0.0:0".parse().unwrap(),
+                addr: None,
                 credentials: None,
             });
         }
@@ -92,7 +109,7 @@ impl TryFrom<&str> for ProxyParameters {
 
         Ok(ProxyParameters {
             proxy_type,
-            addr,
+            addr: Some(addr),
             credentials,
         })
     }
@@ -129,7 +146,7 @@ impl TryFrom<url::Url> for ProxyParameters {
 
         Ok(ProxyParameters {
             proxy_type,
-            addr,
+            addr: Some(addr),
             credentials,
         })
     }
@@ -138,7 +155,10 @@ impl TryFrom<url::Url> for ProxyParameters {
 impl TryFrom<ProxyParameters> for url::Url {
     type Error = Error;
     fn try_from(parameters: ProxyParameters) -> Result<Self> {
-        let mut url = url::Url::parse(&format!("{}://{}", parameters.proxy_type, parameters.addr))
+        let addr = parameters
+            .addr
+            .ok_or_else(|| Error::from("proxy parameters do not contain an address"))?;
+        let mut url = url::Url::parse(&format!("{}://{addr}", parameters.proxy_type))
             .map_err(|e| Error::from(&format!("failed to parse proxy parameters into URL: {e}")))?;
         if let Some(creds) = parameters.credentials {
             url.set_username(&creds.username)
@@ -197,7 +217,7 @@ mod tests {
         let parameters = ProxyParameters::default();
 
         assert_eq!(parameters.proxy_type, ProxyType::Socks5);
-        assert_eq!(parameters.addr, "127.0.0.1:1080".parse().unwrap());
+        assert_eq!(parameters.addr, Some("127.0.0.1:1080".parse().unwrap()));
         assert_eq!(parameters.credentials, None);
         assert_eq!(parameters.to_string(), "socks5://127.0.0.1:1080");
     }
@@ -206,27 +226,27 @@ mod tests {
     fn parse_without_credentials() {
         let parameters = "socks5://123.45.67.89:1080".parse::<ProxyParameters>().unwrap();
         assert_eq!(parameters.proxy_type, ProxyType::Socks5);
-        assert_eq!(parameters.addr, ("123.45.67.89", 1080).into());
-        assert_eq!(parameters.addr.get_type(), crate::protocol::AddressType::IPv4);
+        assert_eq!(parameters.addr, Some(("123.45.67.89", 1080).into()));
+        assert_eq!(parameters.addr.as_ref().unwrap().get_type(), crate::protocol::AddressType::IPv4);
         assert_eq!(parameters.credentials, None);
         assert_eq!(parameters.to_string(), "socks5://123.45.67.89:1080");
 
         let parameters = "socks5://proxy.example.com:1080".parse::<ProxyParameters>().unwrap();
 
         assert_eq!(parameters.proxy_type, ProxyType::Socks5);
-        assert_eq!(parameters.addr, ("proxy.example.com", 1080).into());
+        assert_eq!(parameters.addr, Some(("proxy.example.com", 1080).into()));
         assert_eq!(parameters.credentials, None);
         assert_eq!(parameters.to_string(), "socks5://proxy.example.com:1080");
 
         let parameters = "http://proxy.example.com:8080".parse::<ProxyParameters>().unwrap();
         assert_eq!(parameters.proxy_type, ProxyType::Http);
-        assert_eq!(parameters.addr, ("proxy.example.com", 8080).into());
+        assert_eq!(parameters.addr, Some(("proxy.example.com", 8080).into()));
         assert_eq!(parameters.credentials, None);
         assert_eq!(parameters.to_string(), "http://proxy.example.com:8080");
 
         let parameters = "http://proxy.example.com".parse::<ProxyParameters>().unwrap();
         assert_eq!(parameters.proxy_type, ProxyType::Http);
-        assert_eq!(parameters.addr, ("proxy.example.com", 80).into());
+        assert_eq!(parameters.addr, Some(("proxy.example.com", 80).into()));
         assert_eq!(parameters.credentials, None);
         assert_eq!(parameters.to_string(), "http://proxy.example.com:80");
 
@@ -237,19 +257,19 @@ mod tests {
     fn parse_with_credentials() {
         let parameters = "socks5://user:password@proxy.example.com:1080".parse::<ProxyParameters>().unwrap();
         assert_eq!(parameters.proxy_type, ProxyType::Socks5);
-        assert_eq!(parameters.addr, ("proxy.example.com", 1080).into());
+        assert_eq!(parameters.addr, Some(("proxy.example.com", 1080).into()));
         assert_eq!(parameters.credentials, Some(UserKey::new("user", "password")));
         assert_eq!(parameters.to_string(), "socks5://user:password@proxy.example.com:1080");
 
         let parameters = "socks5://user@123.45.67.89:1080".parse::<ProxyParameters>().unwrap();
         assert_eq!(parameters.proxy_type, ProxyType::Socks5);
-        assert_eq!(parameters.addr, ("123.45.67.89", 1080).into());
+        assert_eq!(parameters.addr, Some(("123.45.67.89", 1080).into()));
         assert_eq!(parameters.credentials, Some(UserKey::new("user", "")));
         assert_eq!(parameters.to_string(), "socks5://user@123.45.67.89:1080");
 
         let parameters = "socks5://:password@123.45.67.89:1080".parse::<ProxyParameters>().unwrap();
         assert_eq!(parameters.proxy_type, ProxyType::Socks5);
-        assert_eq!(parameters.addr, ("123.45.67.89", 1080).into());
+        assert_eq!(parameters.addr, Some(("123.45.67.89", 1080).into()));
         assert_eq!(parameters.credentials, Some(UserKey::new("", "password")));
         assert_eq!(parameters.to_string(), "socks5://:password@123.45.67.89:1080");
     }
@@ -261,7 +281,7 @@ mod tests {
             .unwrap();
 
         assert_eq!(parameters.proxy_type, ProxyType::Socks5);
-        assert_eq!(parameters.addr, ("proxy.example.com", 1080).into());
+        assert_eq!(parameters.addr, Some(("proxy.example.com", 1080).into()));
         assert_eq!(parameters.credentials, Some(UserKey::new("user@name", "pa$$")));
         assert_eq!(parameters.to_string(), "socks5://user%40name:pa%24%24@proxy.example.com:1080");
     }
@@ -271,9 +291,10 @@ mod tests {
         let parameters = "none".parse::<ProxyParameters>().unwrap();
 
         assert_eq!(parameters.proxy_type, ProxyType::None);
-        assert_eq!(parameters.addr, "0.0.0.0:0".parse().unwrap());
+        assert_eq!(parameters.addr, None);
         assert_eq!(parameters.credentials, None);
-        assert_eq!(parameters.to_string(), "none://0.0.0.0:0");
+        assert_eq!(parameters.to_string(), "none");
+        assert!(url::Url::try_from(parameters).is_err());
     }
 
     #[test]
@@ -287,25 +308,37 @@ mod tests {
         let s = "http://proxy.example.com:8080".to_string();
         let parameters = ProxyParameters::try_from(s.clone()).unwrap();
         assert_eq!(parameters.proxy_type, ProxyType::Http);
-        assert_eq!(parameters.addr, ("proxy.example.com", 8080).into());
+        assert_eq!(parameters.addr, Some(("proxy.example.com", 8080).into()));
         assert_eq!(parameters.to_string(), "http://proxy.example.com:8080");
 
         let url = url::Url::parse(&s).unwrap();
         let parameters = ProxyParameters::try_from(url).unwrap();
         assert_eq!(parameters.proxy_type, ProxyType::Http);
-        assert_eq!(parameters.addr, ("proxy.example.com", 8080).into());
+        assert_eq!(parameters.addr, Some(("proxy.example.com", 8080).into()));
     }
 
     #[test]
     fn proxy_parameters_new_and_into_url() {
         let parameters = ProxyParameters::new(
             ProxyType::Socks5,
-            ("proxy.example.com", 1080).into(),
+            Some(("proxy.example.com", 1080).into()),
             Some(UserKey::new("user", "password")),
         );
 
         let url = url::Url::try_from(parameters.clone()).unwrap();
         assert_eq!(url.as_str(), "socks5://user:password@proxy.example.com:1080");
         assert_eq!(parameters.to_string(), "socks5://user:password@proxy.example.com:1080");
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn serde_string_round_trip() {
+        let parameters: ProxyParameters = serde_json::from_str(r#""mixed://127.0.0.1:3080""#).unwrap();
+        assert_eq!(parameters.to_string(), "mixed://127.0.0.1:3080");
+        assert_eq!(serde_json::to_string(&parameters).unwrap(), r#""mixed://127.0.0.1:3080""#);
+
+        let no_proxy: ProxyParameters = serde_json::from_str(r#""none""#).unwrap();
+        assert_eq!(no_proxy.proxy_type, ProxyType::None);
+        assert_eq!(serde_json::to_string(&no_proxy).unwrap(), r#""none""#);
     }
 }

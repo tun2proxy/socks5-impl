@@ -48,7 +48,7 @@ async fn main() -> Result<()> {
 
     let timeout = Duration::from_secs(opt.timeout);
     if let Some(proxy_parameters) = opt.via_proxy {
-        let proxy_addr = std::net::SocketAddr::try_from(proxy_parameters.addr)?;
+        let proxy_addr = std::net::SocketAddr::try_from(proxy_parameters.addr.ok_or("proxy parameters require an address")?)?;
         let user_key = proxy_parameters.credentials.clone();
         let data = ClientWrapper::datagram(proxy_addr, user_key)
             .await?

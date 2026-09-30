@@ -66,7 +66,11 @@ async fn main() -> Result<()> {
         return Err("only socks5 proxy is supported".into());
     }
 
-    let listen_addr: SocketAddr = opt.listen_parameters.addr.try_into()?;
+    let listen_addr: SocketAddr = opt
+        .listen_parameters
+        .addr
+        .ok_or("listen parameters require an address")?
+        .try_into()?;
 
     let auth: auth::AuthAdaptor = if let Some(au) = &opt.listen_parameters.credentials
         && !au.username.is_empty()
