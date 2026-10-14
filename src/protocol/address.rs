@@ -51,7 +51,6 @@ impl From<AddressType> for u8 {
 /// +------+----------+----------+
 /// ```
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 pub enum Address {
     /// Represents an IPv4 or IPv6 socket address.
     SocketAddress(SocketAddr),
@@ -248,6 +247,27 @@ impl std::fmt::Display for Address {
     }
 }
 
+#[cfg(feature = "serde")]
+impl serde::Serialize for Address {
+    fn serialize<S>(&self, serializer: S) -> core::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(&self.to_string())
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<'de> serde::Deserialize<'de> for Address {
+    fn deserialize<D>(deserializer: D) -> core::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = <String as serde::Deserialize>::deserialize(deserializer)?;
+        value.parse().map_err(serde::de::Error::custom)
+    }
+}
+
 impl TryFrom<Address> for SocketAddr {
     type Error = std::io::Error;
 
@@ -435,6 +455,19 @@ fn test_address() {
 fn test_address_display_for_ipv6() {
     let addr = Address::from((Ipv6Addr::new(0x2001, 0xdb8, 0, 0, 0, 0, 0, 1), 8080));
     assert_eq!(addr.to_string(), "[2001:db8::1]:8080");
+}
+
+#[cfg(feature = "serde")]
+#[test]
+fn test_address_serde_string_roundtrip() {
+    for value in ["127.0.0.1:8080", "example.com:8080", "[2001:db8::1]:8080"] {
+        let address = value.parse::<Address>().unwrap();
+        let serialized = serde_json::to_string(&address).unwrap();
+
+        assert_eq!(serialized, serde_json::to_string(&address.to_string()).unwrap());
+        assert_eq!(serde_json::from_str::<Address>(&serialized).unwrap(), address);
+    }
+    assert!(serde_json::from_str::<Address>(r#""example.com""#).is_err());
 }
 
 #[test]
