@@ -1,20 +1,13 @@
-mod address;
 mod command;
 pub mod handshake;
-mod proxy_parameters;
 mod reply;
 mod request;
 mod response;
 mod udp;
 
 pub use self::{
-    address::{Address, AddressType},
     command::Command,
-    handshake::{
-        AuthMethod,
-        password_method::{self, UserKey},
-    },
-    proxy_parameters::{ProxyParameters, ProxyType},
+    handshake::{AuthMethod, password_method},
     reply::Reply,
     request::Request,
     response::Response,
@@ -22,9 +15,6 @@ pub use self::{
 };
 pub use ::bytes::BufMut;
 pub use ::url::Url;
-
-#[cfg(feature = "tokio")]
-use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
 
 /// SOCKS protocol version, either 4 or 5
 #[repr(u8)]
@@ -57,45 +47,5 @@ impl std::fmt::Display for Version {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let v: u8 = (*self).into();
         write!(f, "{v}")
-    }
-}
-
-pub trait StreamOperation {
-    fn retrieve_from_stream<R>(stream: &mut R) -> std::io::Result<Self>
-    where
-        R: std::io::Read,
-        Self: Sized;
-
-    fn write_to_stream<W: std::io::Write>(&self, w: &mut W) -> std::io::Result<()> {
-        let len = self.len();
-        let mut buf = bytes::BytesMut::with_capacity(len);
-        self.write_to_buf(&mut buf);
-        w.write_all(&buf)
-    }
-
-    fn write_to_buf<B: bytes::BufMut>(&self, buf: &mut B);
-
-    fn len(&self) -> usize;
-
-    fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
-}
-
-#[cfg(feature = "tokio")]
-#[async_trait::async_trait]
-pub trait AsyncStreamOperation: StreamOperation {
-    async fn retrieve_from_async_stream<R>(r: &mut R) -> std::io::Result<Self>
-    where
-        R: AsyncRead + Unpin + Send + ?Sized,
-        Self: Sized;
-
-    async fn write_to_async_stream<W>(&self, w: &mut W) -> std::io::Result<()>
-    where
-        W: AsyncWrite + Unpin + Send + ?Sized,
-    {
-        let mut buf = bytes::BytesMut::with_capacity(self.len());
-        self.write_to_buf(&mut buf);
-        w.write_all(&buf).await
     }
 }

@@ -10,15 +10,50 @@ This repo hosts at [socks5-impl](https://github.com/ssrlive/socks5-impl/tree/mas
 
 ## Features
 
-- Fully asynchronized
-- Supports all SOCKS5 commands
-  - CONNECT
-  - BIND
-  - ASSOCIATE
-- Customizable authentication
-    - No authentication
-    - Username / password
-    - GSSAPI
+- `address`: standalone `Address` and `AddressType` types re-exported at the crate root.
+- `user-key`: standalone `UserKey` type re-exported at the crate root.
+- `proxy-parameters`: standalone `ProxyParameters` and `ProxyType` types; enables `address` and `user-key`.
+- `protocol`: full SOCKS5 protocol API under `protocol`; enables `address`, `user-key`, and `proxy-parameters`.
+- `client`: SOCKS5 client support.
+- `server`: SOCKS5 server support.
+- `serde`: serialization support.
+- `tokio`: asynchronous I/O support.
+
+To depend on a standalone type feature, disable default features:
+
+```toml
+socks5-impl = { version = "0.9.9", default-features = false, features = ["address"] }
+```
+
+```rust
+#[cfg(feature = "user-key")]
+fn main() {
+    use socks5_impl::UserKey;
+
+    let key = UserKey::new("user", "password");
+    assert_eq!(key.username, "user");
+}
+
+#[cfg(not(feature = "user-key"))]
+fn main() {}
+```
+
+```rust
+#[cfg(feature = "proxy-parameters")]
+fn main() {
+    use socks5_impl::{ProxyParameters, ProxyType};
+
+    let parameters = "socks5://127.0.0.1:1080".parse::<ProxyParameters>().unwrap();
+    assert_eq!(parameters.proxy_type, ProxyType::Socks5);
+}
+
+#[cfg(not(feature = "proxy-parameters"))]
+fn main() {}
+```
+
+- Fully asynchronized.
+- Supports all SOCKS5 commands: CONNECT, BIND, ASSOCIATE.
+- Customizable authentication: no authentication, username/password, GSSAPI.
 
 ## Usage
 
@@ -36,7 +71,8 @@ use std::{net::SocketAddr, sync::Arc};
 #[cfg(feature = "server")]
 use socks5_impl::{
     Result,
-    protocol::{Address, Reply},
+    Address,
+    protocol::Reply,
     server::{auth, ClientConnection, IncomingConnection, Server},
 };
 
@@ -85,4 +121,5 @@ fn main() {}
 ```
 
 ## License
+
 GNU General Public License v3.0

@@ -1,8 +1,4 @@
-use socks5_impl::{
-    Result,
-    client::ClientWrapper,
-    protocol::{ProxyParameters, ProxyType},
-};
+use socks5_impl::{ProxyParameters, ProxyType, Result, client::ClientWrapper};
 use std::{
     net::{SocketAddr, ToSocketAddrs},
     time::Duration,

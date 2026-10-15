@@ -7,7 +7,7 @@ use tokio::net::{TcpListener, TcpStream};
 pub mod auth;
 pub mod connection;
 
-use crate::protocol::{AsyncStreamOperation, Request};
+use crate::{AsyncStreamOperation, protocol::Request};
 pub use crate::{
     server::auth::{AuthAdaptor, AuthExecutor},
     server::connection::{

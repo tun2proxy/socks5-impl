@@ -1,6 +1,6 @@
 use socks5_impl::{
-    Error, Result,
-    protocol::{Address, ProxyParameters, ProxyType, Reply, UdpHeader},
+    Address, Error, ProxyParameters, ProxyType, Result,
+    protocol::{Reply, UdpHeader},
     server::{AssociatedUdpSocket, ClientConnection, IncomingConnection, Server, UdpAssociate, auth, connection::associate},
 };
 use std::{

@@ -23,6 +23,7 @@ pub enum Error {
     InvalidFragmentId(u8),
 
     #[error("Invalid authentication method: {0:?}")]
+    #[cfg(feature = "protocol")]
     InvalidAuthMethod(crate::protocol::AuthMethod),
 
     #[error("SOCKS version is 4 when 5 is expected")]

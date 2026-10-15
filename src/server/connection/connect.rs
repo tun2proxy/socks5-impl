@@ -1,4 +1,7 @@
-use crate::protocol::{Address, AsyncStreamOperation, Reply, Response};
+use crate::{
+    Address, AsyncStreamOperation,
+    protocol::{Reply, Response},
+};
 use std::{
     io::IoSlice,
     net::SocketAddr,

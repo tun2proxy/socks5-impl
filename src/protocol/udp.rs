@@ -1,6 +1,6 @@
 #[cfg(feature = "tokio")]
-use crate::protocol::AsyncStreamOperation;
-use crate::protocol::{Address, StreamOperation};
+use crate::AsyncStreamOperation;
+use crate::{Address, StreamOperation};
 #[cfg(feature = "tokio")]
 use tokio::io::{AsyncRead, AsyncReadExt};
 

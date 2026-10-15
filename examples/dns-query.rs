@@ -1,10 +1,7 @@
 mod util;
 
 use hickory_proto::rr::RecordType;
-use socks5_impl::{
-    Result, client,
-    protocol::{ProxyParameters, ProxyType},
-};
+use socks5_impl::{ProxyParameters, ProxyType, Result, client};
 use std::{net::SocketAddr, time::Duration};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},

@@ -1,6 +1,7 @@
 use crate::{
+    Address, AddressType, AsyncStreamOperation, StreamOperation, UserKey,
     error::{Error, Result},
-    protocol::{Address, AddressType, AsyncStreamOperation, AuthMethod, Command, Reply, StreamOperation, UserKey, Version},
+    protocol::{AuthMethod, Command, Reply, Version},
 };
 use std::{
     fmt::Debug,
@@ -486,10 +487,10 @@ impl ClientWrapper<SocksUdpClient> {
 
 #[cfg(test)]
 mod tests {
+    use crate::{Address, UserKey};
     use crate::{
         Error, Result,
         client::{self, SocksListener, SocksUdpClient, UdpClientTrait},
-        protocol::{Address, UserKey},
     };
     use std::{
         net::{SocketAddr, ToSocketAddrs},

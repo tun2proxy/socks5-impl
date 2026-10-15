@@ -1,5 +1,4 @@
-use super::{Address, UserKey};
-use crate::{Error, Result};
+use crate::{Address, Error, Result, UserKey};
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
@@ -227,7 +226,7 @@ mod tests {
         let parameters = "socks5://123.45.67.89:1080".parse::<ProxyParameters>().unwrap();
         assert_eq!(parameters.proxy_type, ProxyType::Socks5);
         assert_eq!(parameters.addr, Some(("123.45.67.89", 1080).into()));
-        assert_eq!(parameters.addr.as_ref().unwrap().get_type(), crate::protocol::AddressType::IPv4);
+        assert_eq!(parameters.addr.as_ref().unwrap().get_type(), crate::AddressType::IPv4);
         assert_eq!(parameters.credentials, None);
         assert_eq!(parameters.to_string(), "socks5://123.45.67.89:1080");
 

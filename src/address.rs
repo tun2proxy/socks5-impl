@@ -1,6 +1,6 @@
 #[cfg(feature = "tokio")]
-use crate::protocol::AsyncStreamOperation;
-use crate::protocol::StreamOperation;
+use crate::stream::AsyncStreamOperation;
+use crate::stream::StreamOperation;
 use bytes::BufMut;
 use std::{
     io::Cursor,
@@ -51,6 +51,8 @@ impl From<AddressType> for u8 {
 /// +------+----------+----------+
 /// ```
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(feature = "serde", serde(try_from = "String", into = "String"))]
 pub enum Address {
     /// Represents an IPv4 or IPv6 socket address.
     SocketAddress(SocketAddr),
@@ -247,24 +249,31 @@ impl std::fmt::Display for Address {
     }
 }
 
-#[cfg(feature = "serde")]
-impl serde::Serialize for Address {
-    fn serialize<S>(&self, serializer: S) -> core::result::Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        serializer.serialize_str(&self.to_string())
+impl TryFrom<String> for Address {
+    type Error = crate::Error;
+
+    fn try_from(addr: String) -> std::result::Result<Self, Self::Error> {
+        Self::try_from(addr.as_str())
     }
 }
 
-#[cfg(feature = "serde")]
-impl<'de> serde::Deserialize<'de> for Address {
-    fn deserialize<D>(deserializer: D) -> core::result::Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let value = <String as serde::Deserialize>::deserialize(deserializer)?;
-        value.parse().map_err(serde::de::Error::custom)
+impl TryFrom<&String> for Address {
+    type Error = crate::Error;
+
+    fn try_from(addr: &String) -> std::result::Result<Self, Self::Error> {
+        Self::try_from(addr.as_str())
+    }
+}
+
+impl From<Address> for String {
+    fn from(addr: Address) -> Self {
+        addr.to_string()
+    }
+}
+
+impl From<&Address> for String {
+    fn from(addr: &Address) -> Self {
+        addr.to_string()
     }
 }
 
