@@ -122,6 +122,44 @@ impl Address {
     pub const fn max_serialized_len() -> usize {
         1 + 1 + u8::MAX as usize + 2
     }
+
+    /// Resolves the address using Tokio's asynchronous DNS resolution.
+    /// Returns an iterator over the resolved socket addresses.
+    #[cfg(feature = "tokio")]
+    pub async fn resolve_tokio(&self) -> std::io::Result<std::vec::IntoIter<SocketAddr>> {
+        match self {
+            Address::SocketAddress(addr) => Ok(vec![*addr].into_iter()),
+            Address::DomainAddress(host, port) => {
+                let host = host.strip_prefix('[').and_then(|host| host.strip_suffix(']')).unwrap_or(host);
+                if let Ok(ip) = host.parse::<IpAddr>() {
+                    return Ok(vec![SocketAddr::new(ip, *port)].into_iter());
+                }
+                Ok(tokio::net::lookup_host((host, *port)).await?.collect::<Vec<_>>().into_iter())
+            }
+        }
+    }
+
+    /// Resolves the address using the standard library's DNS resolution.
+    /// Returns an iterator over the resolved socket addresses.
+    /// # Errors
+    ///
+    /// Returns an `std::io::Error` if address resolution fails.
+    /// # Examples
+    ///
+    /// ```
+    /// let addr = socks5_impl::Address::from(("www.qq.com", 80));
+    /// for socket_addr in addr.resolve().unwrap() {
+    ///     println!("Resolved address: {}", socket_addr);
+    /// }
+    ///
+    /// let addr = socks5_impl::Address::from(("127.0.0.1", 8080));
+    /// for socket_addr in addr.resolve().unwrap() {
+    ///     println!("Resolved address: {}", socket_addr);
+    /// }
+    /// ```
+    pub fn resolve(&self) -> std::io::Result<std::vec::IntoIter<SocketAddr>> {
+        self.to_socket_addrs()
+    }
 }
 
 impl StreamOperation for Address {
@@ -235,7 +273,13 @@ impl ToSocketAddrs for Address {
     fn to_socket_addrs(&self) -> std::io::Result<Self::Iter> {
         match self {
             Address::SocketAddress(addr) => Ok(vec![*addr].into_iter()),
-            Address::DomainAddress(addr, port) => Ok((&**addr, *port).to_socket_addrs()?),
+            Address::DomainAddress(host, port) => {
+                let host = host.strip_prefix('[').and_then(|host| host.strip_suffix(']')).unwrap_or(host);
+                if let Ok(ip) = host.parse::<IpAddr>() {
+                    return Ok(vec![SocketAddr::new(ip, *port)].into_iter());
+                }
+                Ok((host, *port).to_socket_addrs()?)
+            }
         }
     }
 }
@@ -277,30 +321,29 @@ impl From<&Address> for String {
     }
 }
 
-impl TryFrom<Address> for SocketAddr {
+impl TryFrom<&Address> for SocketAddr {
     type Error = std::io::Error;
 
-    fn try_from(address: Address) -> std::result::Result<Self, Self::Error> {
+    fn try_from(address: &Address) -> std::result::Result<Self, Self::Error> {
         match address {
-            Address::SocketAddress(addr) => Ok(addr),
-            Address::DomainAddress(addr, port) => {
-                let addr = addr.as_ref();
-                if let Ok(addr) = addr.parse::<IpAddr>() {
-                    Ok(SocketAddr::from((addr, port)))
-                } else {
-                    let err = format!("domain address {addr} cannot be converted to a SocketAddr without DNS, use to_socket_addrs instead");
-                    Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, err))
+            Address::SocketAddress(addr) => Ok(*addr),
+            Address::DomainAddress(host, port) => {
+                let host = host.strip_prefix('[').and_then(|host| host.strip_suffix(']')).unwrap_or(host);
+                if let Ok(addr) = host.parse::<IpAddr>() {
+                    return Ok(SocketAddr::from((addr, *port)));
                 }
+                let err = format!("domain address {host} cannot be converted to a SocketAddr without DNS, use to_socket_addrs instead");
+                Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, err))
             }
         }
     }
 }
 
-impl TryFrom<&Address> for SocketAddr {
+impl TryFrom<Address> for SocketAddr {
     type Error = std::io::Error;
 
-    fn try_from(address: &Address) -> std::result::Result<Self, Self::Error> {
-        TryFrom::<Address>::try_from(address.clone())
+    fn try_from(address: Address) -> std::result::Result<Self, Self::Error> {
+        Self::try_from(&address)
     }
 }
 
