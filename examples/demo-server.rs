@@ -26,7 +26,7 @@ async fn main() -> io::Result<()> {
     let _req = match Request::retrieve_from_async_stream(&mut stream).await {
         Ok(req) => req,
         Err(err) => {
-            let resp = Response::new(Reply::GeneralFailure, Address::unspecified());
+            let resp = Response::new(Reply::GeneralFailure, Address::unspecified_v4());
             resp.write_to_async_stream(&mut stream).await?;
             let _ = stream.shutdown().await;
             return Err(err);

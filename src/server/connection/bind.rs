@@ -75,7 +75,7 @@ impl Bind<NeedFirstReply> {
         let listener = match TcpListener::bind(bind_addr).await {
             Ok(listener) => listener,
             Err(err) => {
-                let _ = self.reply(Reply::GeneralFailure, Address::unspecified()).await;
+                let _ = self.reply(Reply::GeneralFailure, Address::unspecified_v4()).await;
                 return Err(err);
             }
         };

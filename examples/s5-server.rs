@@ -124,11 +124,11 @@ async fn handle(conn: IncomingConnection, advertise_ip: Option<IpAddr>) -> Resul
             };
 
             if let Ok(mut target) = target {
-                let mut conn = connect.reply(Reply::Succeeded, Address::unspecified()).await?;
+                let mut conn = connect.reply(Reply::Succeeded, Address::unspecified_v4()).await?;
                 log::trace!("{} -> {}", conn.peer_addr()?, target.peer_addr()?);
                 io::copy_bidirectional(&mut target, &mut conn).await?;
             } else {
-                let mut conn = connect.reply(Reply::HostUnreachable, Address::unspecified()).await?;
+                let mut conn = connect.reply(Reply::HostUnreachable, Address::unspecified_v4()).await?;
                 conn.shutdown().await?;
             }
         }
@@ -144,7 +144,7 @@ pub(crate) async fn handle_s5_upd_associate(associate: UdpAssociate<associate::N
         match advertise_ip {
             Some(ip) => ip,
             None => {
-                let mut conn = associate.reply(Reply::GeneralFailure, Address::unspecified()).await?;
+                let mut conn = associate.reply(Reply::GeneralFailure, Address::unspecified_v4()).await?;
                 conn.shutdown().await?;
                 return Err("UDP associate requires a concrete local address or an advertised IP".into());
             }
@@ -157,7 +157,7 @@ pub(crate) async fn handle_s5_upd_associate(associate: UdpAssociate<associate::N
 
     match udp_listener.and_then(|socket| socket.local_addr().map(|addr| (socket, addr))) {
         Err(err) => {
-            let mut conn = associate.reply(Reply::GeneralFailure, Address::unspecified()).await?;
+            let mut conn = associate.reply(Reply::GeneralFailure, Address::unspecified_v4()).await?;
             conn.shutdown().await?;
             Err(err.into())
         }

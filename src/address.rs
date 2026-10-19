@@ -62,14 +62,25 @@ pub enum Address {
 
 impl Default for Address {
     fn default() -> Self {
-        Address::unspecified()
+        Address::unspecified_v4()
     }
 }
 
 impl Address {
     /// Returns an unspecified IPv4 address (0.0.0.0:0).
+    #[deprecated(since = "0.10.3", note = "Use 'unspecified_v4' instead")]
     pub fn unspecified() -> Self {
+        Address::unspecified_v4()
+    }
+
+    /// Returns an unspecified IPv4 address (0.0.0.0:0).
+    pub fn unspecified_v4() -> Self {
         Address::SocketAddress(SocketAddr::from((Ipv4Addr::UNSPECIFIED, 0)))
+    }
+
+    /// Returns an unspecified IPv6 address (::0:0).
+    pub fn unspecified_v6() -> Self {
+        Address::SocketAddress(SocketAddr::from((Ipv6Addr::UNSPECIFIED, 0)))
     }
 
     /// Returns the type of the address (IPv4, IPv6, or Domain).
@@ -126,7 +137,7 @@ impl Address {
     /// Resolves the address using Tokio's asynchronous DNS resolution.
     /// Returns an iterator over the resolved socket addresses.
     #[cfg(feature = "tokio")]
-    pub async fn resolve_tokio(&self) -> std::io::Result<std::vec::IntoIter<SocketAddr>> {
+    pub async fn resolve_using_tokio(&self) -> std::io::Result<std::vec::IntoIter<SocketAddr>> {
         match self {
             Address::SocketAddress(addr) => Ok(vec![*addr].into_iter()),
             Address::DomainAddress(host, port) => {
@@ -137,6 +148,13 @@ impl Address {
                 Ok(tokio::net::lookup_host((host, *port)).await?.collect::<Vec<_>>().into_iter())
             }
         }
+    }
+
+    #[cfg(feature = "tokio")]
+    #[deprecated(since = "0.10.3", note = "Use 'resolve_using_tokio' instead.")]
+    #[inline]
+    pub async fn resolve_tokio(&self) -> std::io::Result<std::vec::IntoIter<SocketAddr>> {
+        self.resolve_using_tokio().await
     }
 
     /// Resolves the address using the standard library's DNS resolution.
